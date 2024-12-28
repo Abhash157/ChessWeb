@@ -1,6 +1,7 @@
 const board = document.getElementById("chessboard");
 const debugBox = document.getElementById("debug");
 let selectedSquare = null;
+let turn = 0;
 
 // Chess pieces Unicode symbols
 const pieces = {
@@ -37,7 +38,6 @@ function createChessboard() {
   }
 }
 
-// Place initial pieces
 function placePieces() {
   const initialSetup = [
     ["rook", "knight", "bishop", "queen", "king", "bishop", "knight", "rook"],
@@ -58,13 +58,23 @@ function placePieces() {
     });
   });
 }
+
 function squareClick(square) {
+  if (turn == 0) {
+    moveWhite(square);
+  } else {
+    moveBlack(square);
+  }
+}
+
+function moveWhite(square) {
   if (selectedSquare) {
     // Move piece to new square if it's not the same square
     if (square !== selectedSquare) {
       if (square.classList.contains("movelight")) {
         square.textContent = selectedSquare.textContent;
         selectedSquare.textContent = "";
+        turn = 1;
       }
     }
     selectedSquare.classList.remove("highlight");
@@ -73,13 +83,12 @@ function squareClick(square) {
     }
     selectedSquare = null;
   } else if (square.textContent == pieces.white.pawn) {
+    //Move for white pawn
     const squares = document.getElementsByClassName("square");
-    selectedSquare = square;
+    selectedSquare = square; 
     square.classList.add("highlight");
-    // debug(
-    //   parseInt((square.dataset.row - 1) * 8) + parseInt(square.dataset.col)
-    // );
-    // squares[40].classList.add("movelight");
+
+    // Show pawn moves
     if (square.dataset.row == 6) {
       squares[
         parseInt((square.dataset.row - 2) * 8) + parseInt(square.dataset.col)
@@ -87,6 +96,36 @@ function squareClick(square) {
     }
     squares[
       parseInt((square.dataset.row - 1) * 8) + parseInt(square.dataset.col)
+    ].classList.add("movelight");
+  }
+}
+function moveBlack(square) {
+  if (selectedSquare) {
+    // Move piece to new square if it's not the same square
+    if (square !== selectedSquare) {
+      if (square.classList.contains("movelight")) {
+        square.textContent = selectedSquare.textContent;
+        selectedSquare.textContent = "";
+        turn = 0;
+      }
+    }
+    selectedSquare.classList.remove("highlight");
+    for (let i = 0; i < 64; i++) {
+      squares[i].classList.remove("movelight");
+    }
+    selectedSquare = null;
+  } else if (square.textContent == pieces.black.pawn) {
+    //Move for black pawn
+    const squares = document.getElementsByClassName("square");
+    selectedSquare = square;
+    square.classList.add("highlight");
+    if (square.dataset.row == 1) {
+      squares[
+        (parseInt(square.dataset.row) + 2) * 8 + parseInt(square.dataset.col)
+      ].classList.add("movelight");
+    }
+    squares[
+      (parseInt(square.dataset.row) + 1) * 8 + parseInt(square.dataset.col)
     ].classList.add("movelight");
   }
 }
