@@ -46,11 +46,11 @@ function placePieces() {
   ];
 
   initialSetup.forEach((row, rowIndex) => {
-    row.forEach((piece, colIndex) => {
-      if (piece) {
+    row.forEach((col, colIndex) => {
+      if (col) {
         const square = board.children[rowIndex * 8 + colIndex];
         const color = rowIndex < 2 ? "black" : "white";
-        square.textContent = pieces[color][piece];
+        square.textContent = pieces[color][col];
       }
     });
   });
