@@ -31,10 +31,24 @@ body {
   cursor: pointer;
   text-decoration: none;
   user-select: none;
+  position: relative;
 }
 .square:hover {
   opacity: 0.5;
   font-size: 40px;
+}
+.highlight {
+  outline: 2px solid #333;
+}
+.movelight::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  background: rgba(22, 232, 240, 0.219);
+  z-index: 9;
 }
 
 .black {
@@ -45,6 +59,6 @@ body {
   background-color: #eeeed2;
 }
 
-#debug {
-  /* background: red; */
-}
+/* #debug {
+  background: red;
+} */
