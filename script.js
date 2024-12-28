@@ -1,5 +1,6 @@
 const board = document.getElementById("chessboard");
 const debugBox = document.getElementById("debug");
+let selectedSquare = null;
 
 // Chess pieces Unicode symbols
 const pieces = {
@@ -30,6 +31,7 @@ function createChessboard() {
       square.classList.add((row + col) % 2 == 0 ? "white" : "black");
       square.dataset.row = row;
       square.dataset.col = col;
+      square.addEventListener("click", () => squareClick(square));
       board.appendChild(square);
     }
   }
@@ -48,12 +50,45 @@ function placePieces() {
   initialSetup.forEach((row, rowIndex) => {
     row.forEach((col, colIndex) => {
       if (col) {
-        const square = board.children[rowIndex * 8 + colIndex];
-        const color = rowIndex < 2 ? "black" : "white";
-        square.textContent = pieces[color][col];
+        const squareMap =
+          document.getElementsByClassName("square")[rowIndex * 8 + colIndex];
+        const color = rowIndex < 4 ? "black" : "white";
+        squareMap.textContent = pieces[color][col];
       }
     });
   });
+}
+function squareClick(square) {
+  if (selectedSquare) {
+    // Move piece to new square if it's not the same square
+    if (square !== selectedSquare) {
+      if (square.classList.contains("movelight")) {
+        square.textContent = selectedSquare.textContent;
+        selectedSquare.textContent = "";
+      }
+    }
+    selectedSquare.classList.remove("highlight");
+    for (let i = 0; i < 64; i++) {
+      squares[i].classList.remove("movelight");
+    }
+    selectedSquare = null;
+  } else if (square.textContent == pieces.white.pawn) {
+    const squares = document.getElementsByClassName("square");
+    selectedSquare = square;
+    square.classList.add("highlight");
+    // debug(
+    //   parseInt((square.dataset.row - 1) * 8) + parseInt(square.dataset.col)
+    // );
+    // squares[40].classList.add("movelight");
+    if (square.dataset.row == 6) {
+      squares[
+        parseInt((square.dataset.row - 2) * 8) + parseInt(square.dataset.col)
+      ].classList.add("movelight");
+    }
+    squares[
+      parseInt((square.dataset.row - 1) * 8) + parseInt(square.dataset.col)
+    ].classList.add("movelight");
+  }
 }
 
 // Initialize the game
@@ -62,7 +97,7 @@ placePieces();
 
 //debug
 const squares = document.getElementsByClassName("square");
-function debug() {
-  debugBox.innerHTML = initialSetup;
+function debug(content) {
+  debugBox.innerHTML = content;
 }
 // debug();
