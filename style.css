@@ -1,3 +1,6 @@
+:root {
+  --invalidOpacity: 0;
+}
 body {
   min-height: 100vh;
   width: 100vw;
@@ -7,6 +10,7 @@ body {
 }
 .container {
   display: flex;
+  /* height: 100vh; */
   flex-direction: column;
   justify-content: center;
   align-items: center;
@@ -32,13 +36,37 @@ body {
   text-decoration: none;
   user-select: none;
   position: relative;
+  transition: 100ms ease;
 }
-.square:hover {
+.white:hover {
+  background: #cbcfcd;
   opacity: 0.5;
   font-size: 40px;
 }
-.highlight {
-  outline: 2px solid #333;
+.black:hover {
+  opacity: 0.5;
+  font-size: 40px;
+}
+.invalidSquare::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  background-color: rgba(255, 0, 0, 0.452);
+  z-index: 9;
+  transition: 500ms ease-out;
+}
+
+.highlight::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  background: rgba(148, 102, 11, 0.199);
 }
 .movelight::after {
   content: "";
@@ -47,7 +75,7 @@ body {
   left: 0;
   height: 100%;
   width: 100%;
-  background: rgba(22, 232, 240, 0.219);
+  background: rgba(0, 247, 255, 0.219);
   z-index: 9;
 }
 

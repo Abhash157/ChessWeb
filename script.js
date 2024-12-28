@@ -1,6 +1,8 @@
 const board = document.getElementById("chessboard");
 const debugBox = document.getElementById("debug");
 let selectedSquare = null;
+let turn = 0;
+let invalidOpacity = 0;
 
 // Chess pieces Unicode symbols
 const pieces = {
@@ -22,6 +24,23 @@ const pieces = {
   },
 };
 
+const whitePieces = [
+  pieces.white.king,
+  pieces.white.queen,
+  pieces.white.rook,
+  pieces.white.bishop,
+  pieces.white.knight,
+  pieces.white.pawn,
+];
+const blackPieces = [
+  pieces.black.king,
+  pieces.black.queen,
+  pieces.black.rook,
+  pieces.black.bishop,
+  pieces.black.knight,
+  pieces.black.pawn,
+];
+
 // Create chess board
 function createChessboard() {
   for (let row = 0; row < 8; row++) {
@@ -37,7 +56,6 @@ function createChessboard() {
   }
 }
 
-// Place initial pieces
 function placePieces() {
   const initialSetup = [
     ["rook", "knight", "bishop", "queen", "king", "bishop", "knight", "rook"],
@@ -58,13 +76,25 @@ function placePieces() {
     });
   });
 }
+
 function squareClick(square) {
+  if (turn == 0) {
+    moveWhite(square);
+  } else {
+    moveBlack(square);
+  }
+}
+
+function moveWhite(square) {
+  sqRow = parseInt(square.dataset.row);
+  sqCol = parseInt(square.dataset.col);
   if (selectedSquare) {
     // Move piece to new square if it's not the same square
     if (square !== selectedSquare) {
       if (square.classList.contains("movelight")) {
         square.textContent = selectedSquare.textContent;
         selectedSquare.textContent = "";
+        turn = 1;
       }
     }
     selectedSquare.classList.remove("highlight");
@@ -73,21 +103,73 @@ function squareClick(square) {
     }
     selectedSquare = null;
   } else if (square.textContent == pieces.white.pawn) {
+    //Move for white pawn
     const squares = document.getElementsByClassName("square");
     selectedSquare = square;
     square.classList.add("highlight");
-    // debug(
-    //   parseInt((square.dataset.row - 1) * 8) + parseInt(square.dataset.col)
-    // );
-    // squares[40].classList.add("movelight");
-    if (square.dataset.row == 6) {
-      squares[
-        parseInt((square.dataset.row - 2) * 8) + parseInt(square.dataset.col)
-      ].classList.add("movelight");
+
+    // Show pawn moves
+    // 2 moves in first move
+    if (sqRow == 6) {
+      squares[(sqRow - 2) * 8 + sqCol].classList.add("movelight");
     }
-    squares[
-      parseInt((square.dataset.row - 1) * 8) + parseInt(square.dataset.col)
-    ].classList.add("movelight");
+    // pawn normal move
+    if (squares[(sqRow - 1) * 8 + sqCol].innerText == "") {
+      squares[(sqRow - 1) * 8 + sqCol].classList.add("movelight");
+    }
+    // pawn diagonal move
+    if (
+      squares[(sqRow - 1) * 8 + (sqCol - 1)].innerHTML != "" &&
+      sqCol != 0 //bug fix on left end of board
+    ) {
+      squares[(sqRow - 1) * 8 + (sqCol - 1)].classList.add("movelight");
+    }
+    if (
+      squares[(sqRow - 1) * 8 + (sqCol + 1)].innerHTML != "" &&
+      sqCol != 7 //bug fix on right end of board
+    ) {
+      squares[(sqRow - 1) * 8 + (sqCol + 1)].classList.add("movelight");
+    }
+  } else if (blackPieces.indexOf(square.textContent) != -1) {
+    // Highlights invalid move
+    square.classList.add("invalidSquare");
+    setTimeout(() => {
+      square.classList.remove("invalidSquare");
+    }, 150);
+  }
+}
+function moveBlack(square) {
+  sqRow = parseInt(square.dataset.row);
+  sqCol = parseInt(square.dataset.col);
+  if (selectedSquare) {
+    // Move piece to new square if it's not the same square
+    if (square !== selectedSquare) {
+      if (square.classList.contains("movelight")) {
+        square.textContent = selectedSquare.textContent;
+        selectedSquare.textContent = "";
+        turn = 0;
+      }
+    }
+    selectedSquare.classList.remove("highlight");
+    for (let i = 0; i < 64; i++) {
+      squares[i].classList.remove("movelight");
+    }
+    selectedSquare = null;
+  } else if (square.textContent == pieces.black.pawn) {
+    //Move for black pawn
+    const squares = document.getElementsByClassName("square");
+    selectedSquare = square;
+    square.classList.add("highlight");
+    if (sqRow == 1) {
+      squares[(sqRow + 2) * 8 + sqCol].classList.add("movelight");
+    }
+    squares[(sqRow + 1) * 8 + sqCol].classList.add("movelight");
+  } else if (whitePieces.indexOf(square.textContent) != -1) {
+    // Highlights invalid move
+    square.classList.add("invalidSquare");
+    setTimeout(() => {
+      square.classList.remove("invalidSquare");
+    }, 150);
   }
 }
 
