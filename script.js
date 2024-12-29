@@ -1,7 +1,7 @@
 const board = document.getElementById("chessboard");
 const debugBox = document.getElementById("debug");
 let selectedSquare = null;
-let turn = 0;
+let turn = 1;
 let invalidOpacity = 0;
 
 // Chess pieces Unicode symbols
@@ -119,13 +119,15 @@ function moveWhite(square) {
     }
     // pawn diagonal move
     if (
-      squares[(sqRow - 1) * 8 + (sqCol - 1)].innerHTML != "" &&
+      blackPieces.indexOf(squares[(sqRow - 1) * 8 + (sqCol - 1)].innerHTML) !=
+        -1 &&
       sqCol != 0 //bug fix on left end of board
     ) {
       squares[(sqRow - 1) * 8 + (sqCol - 1)].classList.add("movelight");
     }
     if (
-      squares[(sqRow - 1) * 8 + (sqCol + 1)].innerHTML != "" &&
+      blackPieces.indexOf(squares[(sqRow - 1) * 8 + (sqCol + 1)].innerHTML) !=
+        -1 &&
       sqCol != 7 //bug fix on right end of board
     ) {
       squares[(sqRow - 1) * 8 + (sqCol + 1)].classList.add("movelight");
@@ -138,6 +140,7 @@ function moveWhite(square) {
     }, 150);
   }
 }
+
 function moveBlack(square) {
   sqRow = parseInt(square.dataset.row);
   sqCol = parseInt(square.dataset.col);
@@ -160,10 +163,31 @@ function moveBlack(square) {
     const squares = document.getElementsByClassName("square");
     selectedSquare = square;
     square.classList.add("highlight");
+
+    // Show pawn moves
+    // 2 moves in first move
     if (sqRow == 1) {
       squares[(sqRow + 2) * 8 + sqCol].classList.add("movelight");
     }
-    squares[(sqRow + 1) * 8 + sqCol].classList.add("movelight");
+    // pawn normal move
+    if (squares[(sqRow + 1) * 8 + sqCol].innerText == "") {
+      squares[(sqRow + 1) * 8 + sqCol].classList.add("movelight");
+    }
+    // pawn diagonal move
+    if (
+      whitePieces.indexOf(squares[(sqRow + 1) * 8 + (sqCol - 1)].innerHTML) !=
+        -1 &&
+      sqCol != 0 //bug fix on left end of board
+    ) {
+      squares[(sqRow + 1) * 8 + (sqCol - 1)].classList.add("movelight");
+    }
+    if (
+      whitePieces.indexOf(squares[(sqRow + 1) * 8 + (sqCol + 1)].innerHTML) !=
+        -1 &&
+      sqCol != 7 //bug fix on right end of board
+    ) {
+      squares[(sqRow + 1) * 8 + (sqCol + 1)].classList.add("movelight");
+    }
   } else if (whitePieces.indexOf(square.textContent) != -1) {
     // Highlights invalid move
     square.classList.add("invalidSquare");
