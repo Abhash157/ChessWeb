@@ -78,6 +78,16 @@ body {
   background: rgba(0, 247, 255, 0.219);
   z-index: 9;
 }
+.takelight::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  background: rgba(241, 99, 5, 0.37);
+  z-index: 10;
+}
 
 .black {
   background-color: #769656;
