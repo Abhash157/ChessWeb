@@ -88,6 +88,21 @@ body {
   background: rgba(241, 99, 5, 0.37);
   z-index: 10;
 }
+.dangerlight::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(
+    -45deg,
+    rgba(235, 47, 14, 0.788),
+    rgba(253, 93, 29, 0.623),
+    rgba(255, 42, 4, 0.253)
+  );
+  z-index: 10;
+}
 
 .black {
   background-color: #769656;
