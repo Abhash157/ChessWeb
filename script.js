@@ -1,7 +1,7 @@
 const board = document.getElementById("chessboard");
 const debugBox = document.getElementById("debug");
 let selectedSquare = null;
-let turn = 1;
+let turn = 0;
 let invalidOpacity = 0;
 
 // Chess pieces Unicode symbols
@@ -13,6 +13,8 @@ const pieces = {
     bishop: "\u2657",
     knight: "\u2658",
     pawn: "\u2659",
+    checked: false,
+    checkSquare: 0,
   },
   black: {
     king: "\u265A",
@@ -21,6 +23,8 @@ const pieces = {
     bishop: "\u265D",
     knight: "\u265E",
     pawn: "\u265F",
+    checked: false,
+    checkSquare: 0,
   },
 };
 
@@ -90,6 +94,10 @@ function moveWhite(square) {
   sqCol = parseInt(square.dataset.col);
   if (selectedSquare) {
     // Move piece to new square if it's not the same square
+    if (pieces.black.checked) {
+      squares[checkSquare].classList.remove("dangerlight");
+      pieces.black.checked = false;
+    }
     if (square !== selectedSquare) {
       if (
         square.classList.contains("movelight") ||
@@ -97,7 +105,29 @@ function moveWhite(square) {
       ) {
         square.textContent = selectedSquare.textContent;
         selectedSquare.textContent = "";
-        turn = 1;
+
+        // Pawn Check
+        if (square.textContent == pieces.white.pawn) {
+          if (
+            squares[(sqRow - 1) * 8 + (sqCol - 1)].innerHTML ==
+              pieces.black.king &&
+            sqCol != 0
+          ) {
+            checkSquare = (sqRow - 1) * 8 + (sqCol - 1);
+            squares[checkSquare].classList.add("dangerlight");
+            pieces.black.checked = true;
+          }
+          if (
+            squares[(sqRow - 1) * 8 + (sqCol + 1)].innerHTML ==
+              pieces.black.king &&
+            sqCol != 7 //bug fix on right end of board
+          ) {
+            checkSquare = (sqRow - 1) * 8 + (sqCol + 1);
+            squares[checkSquare].classList.add("dangerlight");
+            pieces.black.checked = true;
+          }
+        }
+        turn = 0;
       }
     }
     selectedSquare.classList.remove("highlight");
@@ -106,6 +136,7 @@ function moveWhite(square) {
       squares[i].classList.remove("takelight");
     }
     selectedSquare = null;
+    // debug(pieces.black.checked);
   } else if (square.textContent == pieces.white.pawn) {
     //Move for white pawn
     const squares = document.getElementsByClassName("square");
@@ -178,6 +209,22 @@ function moveWhite(square) {
       }
       squares[sqRow * 8 + i].classList.add("movelight");
     }
+  } else if (square.textContent == pieces.white.king) {
+    selectedSquare = square;
+    for (i = 0; i < 3; i++) {
+      for (j = 0; j < 3; j++) {
+        console.log(i, j);
+        if (
+          (sqRow - 1 + i) * 8 + sqCol - 1 + j > 63 ||
+          (sqRow - 1 + i) * 8 + sqCol - 1 + j < 0 ||
+          (sqCol % 8 == 0 && j == 0) ||
+          (sqCol % 8 == 7 && j == 2)
+        ) {
+          continue; //King overflow controlled
+        }
+        squares[(sqRow - 1 + i) * 8 + sqCol - 1 + j].classList.add("movelight");
+      }
+    }
   } else if (blackPieces.indexOf(square.textContent) != -1) {
     // Highlights invalid move
     square.classList.add("invalidSquare");
@@ -191,6 +238,14 @@ function moveBlack(square) {
   sqRow = parseInt(square.dataset.row);
   sqCol = parseInt(square.dataset.col);
   if (selectedSquare) {
+    if (pieces.white.checked) {
+      squares[checkSquare].classList.remove("dangerlight");
+      pieces.white.checked = false;
+    }
+    for (let i = 0; i < 64; i++) {
+      squares[i].classList.remove("dangerlight");
+    }
+
     // Move piece to new square if it's not the same square
     if (square !== selectedSquare) {
       if (
@@ -200,6 +255,26 @@ function moveBlack(square) {
         square.textContent = selectedSquare.textContent;
         selectedSquare.textContent = "";
         turn = 1;
+
+        // Pawn Check
+        if (
+          squares[(sqRow + 1) * 8 + (sqCol - 1)].innerHTML ==
+            pieces.white.king &&
+          sqCol != 0
+        ) {
+          checkSquare = (sqRow + 1) * 8 + (sqCol - 1);
+          squares[checkSquare].classList.add("dangerlight");
+          pieces.white.checked = true;
+        }
+        if (
+          squares[(sqRow - 1) * 8 + (sqCol + 1)].innerHTML ==
+            pieces.white.king &&
+          sqCol != 7 //bug fix on right end of board
+        ) {
+          checkSquare = (sqRow - 1) * 8 + (sqCol + 1);
+          squares[(sqRow - 1) * 8 + (sqCol + 1)].classList.add("dangerlight");
+          pieces.white.checked = true;
+        }
       }
     }
     selectedSquare.classList.remove("highlight");
@@ -292,7 +367,6 @@ function moveBlack(square) {
 createChessboard();
 placePieces();
 
-//debug
 const squares = document.getElementsByClassName("square");
 function debug(content) {
   debugBox.innerHTML = content;
