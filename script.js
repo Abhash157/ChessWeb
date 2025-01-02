@@ -211,21 +211,44 @@ function moveWhite(square) {
     nRow2 = [sqRow - 2, sqRow + 2];
     nCol = [sqCol - 1, sqCol + 1];
     nCol2 = [sqCol - 2, sqCol + 2];
-    let tot = "";
+
+    // adds movelight for Row (+-1) then column (+-2),and Row(+-2) then column(+-1)
     nRow.forEach((row) => {
       nCol2.forEach((col) => {
-        if (row * 8 + col > 63 || col >= 8 || col <= -1) {
+        if (
+          row * 8 + col > 63 ||
+          row * 8 + col < 0 ||
+          col >= 8 ||
+          col <= -1 ||
+          whitePieces.indexOf(squares[row * 8 + col].textContent) != -1
+        ) {
           return;
         }
+        let squareBox = squares[row * 8 + col];
         squares[row * 8 + col].classList.add("movelight");
+        squareBox.classList.add("movelight");
+        if (blackPieces.indexOf(squareBox.textContent) != -1) {
+          squareBox.classList.add("takelight");
+        }
       });
     });
     nRow2.forEach((row) => {
       nCol.forEach((col) => {
-        if (row * 8 + col > 63 || col >= 8 || col <= -1) {
+        if (
+          row * 8 + col > 63 ||
+          row * 8 + col < 0 ||
+          col >= 8 ||
+          col <= -1 ||
+          whitePieces.indexOf(squares[row * 8 + col].textContent) != -1
+        ) {
           return;
         }
+        let squareBox = squares[row * 8 + col];
         squares[row * 8 + col].classList.add("movelight");
+        squareBox.classList.add("movelight");
+        if (blackPieces.indexOf(squareBox.textContent) != -1) {
+          squareBox.classList.add("takelight");
+        }
       });
     });
   } else if (square.textContent == pieces.white.king) {
@@ -374,6 +397,51 @@ function moveBlack(square) {
       }
       squares[sqRow * 8 + i].classList.add("movelight");
     }
+  } else if (square.textContent == pieces.black.knight) {
+    selectedSquare = square;
+    nRow = [sqRow - 1, sqRow + 1];
+    nRow2 = [sqRow - 2, sqRow + 2];
+    nCol = [sqCol - 1, sqCol + 1];
+    nCol2 = [sqCol - 2, sqCol + 2];
+
+    // adds movelight for Row (+-1) then column (+-2),and Row(+-2) then column(+-1)
+    nRow.forEach((row) => {
+      nCol2.forEach((col) => {
+        if (
+          row * 8 + col > 63 ||
+          row * 8 + col < 0 ||
+          col >= 8 ||
+          col <= -1 ||
+          blackPieces.indexOf(squares[row * 8 + col].textContent) != -1
+        ) {
+          return;
+        }
+        let squareBox = squares[row * 8 + col];
+        squares[row * 8 + col].classList.add("movelight");
+        squareBox.classList.add("movelight");
+        if (whitePieces.indexOf(squareBox.textContent) != -1) {
+          squareBox.classList.add("takelight");
+        }
+      });
+    });
+    nRow2.forEach((row) => {
+      nCol.forEach((col) => {
+        if (
+          row * 8 + col > 63 ||
+          row * 8 + col < 0 ||
+          col >= 8 ||
+          col <= -1 ||
+          blackPieces.indexOf(squares[row * 8 + col].textContent) != -1
+        ) {
+          return;
+        }
+        let squareBox = squares[row * 8 + col];
+        squareBox.classList.add("movelight");
+        if (whitePieces.indexOf(squareBox.textContent) != -1) {
+          squareBox.classList.add("takelight");
+        }
+      });
+    });
   } else if (square.textContent == pieces.black.king) {
     selectedSquare = square;
     for (i = 0; i < 3; i++) {
