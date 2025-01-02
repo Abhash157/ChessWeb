@@ -93,11 +93,6 @@ function moveWhite(square) {
   sqRow = parseInt(square.dataset.row);
   sqCol = parseInt(square.dataset.col);
   if (selectedSquare) {
-    // Move piece to new square if it's not the same square
-    if (pieces.black.checked) {
-      squares[checkSquare].classList.remove("dangerlight");
-      pieces.black.checked = false;
-    }
     if (square !== selectedSquare) {
       if (
         square.classList.contains("movelight") ||
@@ -107,26 +102,27 @@ function moveWhite(square) {
         selectedSquare.textContent = "";
 
         // Pawn Check
-        if (square.textContent == pieces.white.pawn) {
-          if (
-            squares[(sqRow - 1) * 8 + (sqCol - 1)].innerHTML ==
-              pieces.black.king &&
-            sqCol != 0
-          ) {
-            checkSquare = (sqRow - 1) * 8 + (sqCol - 1);
-            squares[checkSquare].classList.add("dangerlight");
-            pieces.black.checked = true;
-          }
-          if (
-            squares[(sqRow - 1) * 8 + (sqCol + 1)].innerHTML ==
-              pieces.black.king &&
-            sqCol != 7 //bug fix on right end of board
-          ) {
-            checkSquare = (sqRow - 1) * 8 + (sqCol + 1);
-            squares[checkSquare].classList.add("dangerlight");
-            pieces.black.checked = true;
-          }
-        }
+        // if (square.textContent == pieces.white.pawn) {
+        //   if (
+        //     squares[(sqRow - 1) * 8 + (sqCol - 1)].innerHTML ==
+        //       pieces.black.king &&
+        //     sqCol != 0
+        //   ) {
+        //     checkSquare = (sqRow - 1) * 8 + (sqCol - 1);
+        //     squares[checkSquare].classList.add("dangerlight");
+        //     pieces.black.checked = true;
+        //   }
+        //   if (
+        //     squares[(sqRow - 1) * 8 + (sqCol + 1)].innerHTML ==
+        //       pieces.black.king &&
+        //     sqCol != 7 //bug fix on right end of board
+        //   ) {
+        //     checkSquare = (sqRow - 1) * 8 + (sqCol + 1);
+        //     squares[checkSquare].classList.add("dangerlight");
+        //     pieces.black.checked = true;
+        //   }
+        // }
+
         turn = 0;
       }
     }
@@ -209,20 +205,48 @@ function moveWhite(square) {
       }
       squares[sqRow * 8 + i].classList.add("movelight");
     }
+  } else if (square.textContent == pieces.white.knight) {
+    selectedSquare = square;
+    nRow = [sqRow - 1, sqRow + 1];
+    nRow2 = [sqRow - 2, sqRow + 2];
+    nCol = [sqCol - 1, sqCol + 1];
+    nCol2 = [sqCol - 2, sqCol + 2];
+    let tot = "";
+    nRow.forEach((row) => {
+      nCol2.forEach((col) => {
+        if (row * 8 + col > 63 || col >= 8 || col <= -1) {
+          return;
+        }
+        squares[row * 8 + col].classList.add("movelight");
+      });
+    });
+    nRow2.forEach((row) => {
+      nCol.forEach((col) => {
+        if (row * 8 + col > 63 || col >= 8 || col <= -1) {
+          return;
+        }
+        squares[row * 8 + col].classList.add("movelight");
+      });
+    });
   } else if (square.textContent == pieces.white.king) {
     selectedSquare = square;
     for (i = 0; i < 3; i++) {
       for (j = 0; j < 3; j++) {
-        console.log(i, j);
+        let moveCell = (sqRow - 1 + i) * 8 + sqCol - 1 + j;
+        debug(squares[moveCell].classList);
         if (
-          (sqRow - 1 + i) * 8 + sqCol - 1 + j > 63 ||
-          (sqRow - 1 + i) * 8 + sqCol - 1 + j < 0 ||
+          moveCell > 63 ||
+          moveCell < 0 ||
           (sqCol % 8 == 0 && j == 0) ||
           (sqCol % 8 == 7 && j == 2)
+          // squares[moveCell].classList.indexOf("dangerSquare") != 1
         ) {
-          continue; //King overflow controlled
+          continue; //King Corner overflow controlled
         }
-        squares[(sqRow - 1 + i) * 8 + sqCol - 1 + j].classList.add("movelight");
+
+        if (whitePieces.indexOf(squares[moveCell].textContent) == -1) {
+          squares[moveCell].classList.add("movelight");
+        }
       }
     }
   } else if (blackPieces.indexOf(square.textContent) != -1) {
@@ -238,10 +262,6 @@ function moveBlack(square) {
   sqRow = parseInt(square.dataset.row);
   sqCol = parseInt(square.dataset.col);
   if (selectedSquare) {
-    if (pieces.white.checked) {
-      squares[checkSquare].classList.remove("dangerlight");
-      pieces.white.checked = false;
-    }
     for (let i = 0; i < 64; i++) {
       squares[i].classList.remove("dangerlight");
     }
@@ -257,24 +277,24 @@ function moveBlack(square) {
         turn = 1;
 
         // Pawn Check
-        if (
-          squares[(sqRow + 1) * 8 + (sqCol - 1)].innerHTML ==
-            pieces.white.king &&
-          sqCol != 0
-        ) {
-          checkSquare = (sqRow + 1) * 8 + (sqCol - 1);
-          squares[checkSquare].classList.add("dangerlight");
-          pieces.white.checked = true;
-        }
-        if (
-          squares[(sqRow - 1) * 8 + (sqCol + 1)].innerHTML ==
-            pieces.white.king &&
-          sqCol != 7 //bug fix on right end of board
-        ) {
-          checkSquare = (sqRow - 1) * 8 + (sqCol + 1);
-          squares[(sqRow - 1) * 8 + (sqCol + 1)].classList.add("dangerlight");
-          pieces.white.checked = true;
-        }
+        // if (
+        //   squares[(sqRow + 1) * 8 + (sqCol - 1)].innerHTML ==
+        //     pieces.white.king &&
+        //   sqCol != 0
+        // ) {
+        //   checkSquare = (sqRow + 1) * 8 + (sqCol - 1);
+        //   squares[checkSquare].classList.add("dangerlight");
+        //   pieces.white.checked = true;
+        // }
+        // if (
+        //   squares[(sqRow - 1) * 8 + (sqCol + 1)].innerHTML ==
+        //     pieces.white.king &&
+        //   sqCol != 7 //bug fix on right end of board
+        // ) {
+        //   checkSquare = (sqRow - 1) * 8 + (sqCol + 1);
+        //   squares[(sqRow - 1) * 8 + (sqCol + 1)].classList.add("dangerlight");
+        //   pieces.white.checked = true;
+        // }
       }
     }
     selectedSquare.classList.remove("highlight");
@@ -353,6 +373,24 @@ function moveBlack(square) {
         break;
       }
       squares[sqRow * 8 + i].classList.add("movelight");
+    }
+  } else if (square.textContent == pieces.black.king) {
+    selectedSquare = square;
+    for (i = 0; i < 3; i++) {
+      for (j = 0; j < 3; j++) {
+        let moveCell = (sqRow - 1 + i) * 8 + sqCol - 1 + j;
+        if (
+          moveCell > 63 ||
+          moveCell < 0 ||
+          (sqCol % 8 == 0 && j == 0) ||
+          (sqCol % 8 == 7 && j == 2)
+        ) {
+          continue; //King overflow controlled
+        }
+        if (blackPieces.indexOf(squares[moveCell].textContent) == -1) {
+          squares[moveCell].classList.add("movelight");
+        }
+      }
     }
   } else if (whitePieces.indexOf(square.textContent) != -1) {
     // Highlights invalid move
