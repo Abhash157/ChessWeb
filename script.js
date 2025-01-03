@@ -1,7 +1,7 @@
 const board = document.getElementById("chessboard");
 const debugBox = document.getElementById("debug");
 let selectedSquare = null;
-let turn = 0;
+let turn = 1;
 let invalidOpacity = 0;
 
 // Chess pieces Unicode symbols
@@ -251,6 +251,170 @@ function moveWhite(square) {
         }
       });
     });
+  } else if (square.textContent == pieces.white.bishop) {
+    selectedSquare = square;
+    squares[sqRow * 8 + sqCol].classList.add("highlight");
+    // Bishop Column Up
+    for (let i = 0; i <= 7; i++) {
+      bRow = sqRow - i - 1;
+      bCol = sqCol - i - 1;
+
+      if (bRow >= 0 && bCol >= 0) {
+        if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          break;
+        }
+        squares[bRow * 8 + bCol].classList.add("movelight");
+        if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          squares[bRow * 8 + bCol].classList.add("takelight");
+          break;
+        }
+      }
+    }
+    for (let i = 0; i <= 7; i++) {
+      bRow = sqRow - i - 1;
+      bCol = sqCol + i + 1;
+      if (bRow >= 0 && bCol <= 7) {
+        if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          break;
+        }
+        squares[bRow * 8 + bCol].classList.add("movelight");
+        if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          squares[bRow * 8 + bCol].classList.add("takelight");
+          break;
+        }
+      }
+    }
+    // Bishop Column Down
+    for (let i = 0; i <= 7; i++) {
+      bRow = sqRow + i + 1;
+      bCol = sqCol - i - 1;
+      if (bRow <= 7 && bCol >= 0) {
+        if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          break;
+        }
+        squares[bRow * 8 + bCol].classList.add("movelight");
+        if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          squares[bRow * 8 + bCol].classList.add("takelight");
+          break;
+        }
+      }
+    }
+    for (let i = 0; i <= 7; i++) {
+      bRow = sqRow + i + 1;
+      bCol = sqCol + i + 1;
+      if (bRow <= 7 && bCol <= 7) {
+        if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          break;
+        }
+        squares[bRow * 8 + bCol].classList.add("movelight");
+        if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          squares[bRow * 8 + bCol].classList.add("takelight");
+          break;
+        }
+      }
+    }
+  } else if (square.textContent == pieces.white.queen) {
+    selectedSquare = square;
+    squares[sqRow * 8 + sqCol].classList.add("highlight");
+
+    for (let i = sqRow - 1; i >= 0; i--) {
+      if (blackPieces.indexOf(squares[i * 8 + sqCol].textContent) != -1) {
+        squares[i * 8 + sqCol].classList.add("takelight");
+      }
+      if (squares[i * 8 + sqCol].textContent != "") {
+        break;
+      }
+      squares[i * 8 + sqCol].classList.add("movelight");
+    }
+    for (let i = sqRow + 1; i <= 7; i++) {
+      if (blackPieces.indexOf(squares[i * 8 + sqCol].textContent) != -1) {
+        squares[i * 8 + sqCol].classList.add("takelight");
+      }
+      if (squares[i * 8 + sqCol].textContent != "") {
+        break;
+      }
+      squares[i * 8 + sqCol].classList.add("movelight");
+    }
+
+    // Rook Row moves
+    for (let i = sqCol + 1; i <= 7; i++) {
+      if (blackPieces.indexOf(squares[sqRow * 8 + i].textContent) != -1) {
+        squares[sqRow * 8 + i].classList.add("takelight");
+      }
+      if (squares[sqRow * 8 + i].textContent != "") {
+        break;
+      }
+      squares[sqRow * 8 + i].classList.add("movelight");
+    }
+    for (let i = sqCol - 1; i >= 0; i--) {
+      if (blackPieces.indexOf(squares[sqRow * 8 + i].textContent) != -1) {
+        squares[sqRow * 8 + i].classList.add("takelight");
+      }
+      if (squares[sqRow * 8 + i].textContent != "") {
+        break;
+      }
+      squares[sqRow * 8 + i].classList.add("movelight");
+    }
+
+    // Bishop Column Up
+    for (let i = 0; i <= 7; i++) {
+      bRow = sqRow - i - 1;
+      bCol = sqCol - i - 1;
+
+      if (bRow >= 0 && bCol >= 0) {
+        if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          break;
+        }
+        squares[bRow * 8 + bCol].classList.add("movelight");
+        if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          squares[bRow * 8 + bCol].classList.add("takelight");
+          break;
+        }
+      }
+    }
+    for (let i = 0; i <= 7; i++) {
+      bRow = sqRow - i - 1;
+      bCol = sqCol + i + 1;
+      if (bRow >= 0 && bCol <= 7) {
+        if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          break;
+        }
+        squares[bRow * 8 + bCol].classList.add("movelight");
+        if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          squares[bRow * 8 + bCol].classList.add("takelight");
+          break;
+        }
+      }
+    }
+    // Bishop Column Down
+    for (let i = 0; i <= 7; i++) {
+      bRow = sqRow + i + 1;
+      bCol = sqCol - i - 1;
+      if (bRow <= 7 && bCol >= 0) {
+        if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          break;
+        }
+        squares[bRow * 8 + bCol].classList.add("movelight");
+        if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          squares[bRow * 8 + bCol].classList.add("takelight");
+          break;
+        }
+      }
+    }
+    for (let i = 0; i <= 7; i++) {
+      bRow = sqRow + i + 1;
+      bCol = sqCol + i + 1;
+      if (bRow <= 7 && bCol <= 7) {
+        if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          break;
+        }
+        squares[bRow * 8 + bCol].classList.add("movelight");
+        if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          squares[bRow * 8 + bCol].classList.add("takelight");
+          break;
+        }
+      }
+    }
   } else if (square.textContent == pieces.white.king) {
     selectedSquare = square;
     for (i = 0; i < 3; i++) {
@@ -442,6 +606,169 @@ function moveBlack(square) {
         }
       });
     });
+  } else if (square.textContent == pieces.black.bishop) {
+    selectedSquare = square;
+    squares[sqRow * 8 + sqCol].classList.add("highlight");
+    // Bishop Column Up
+    for (let i = 0; i <= 7; i++) {
+      bRow = sqRow - i - 1;
+      bCol = sqCol - i - 1;
+
+      if (bRow >= 0 && bCol >= 0) {
+        if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          break;
+        }
+        squares[bRow * 8 + bCol].classList.add("movelight");
+        if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          squares[bRow * 8 + bCol].classList.add("takelight");
+          break;
+        }
+      }
+    }
+    for (let i = 0; i <= 7; i++) {
+      bRow = sqRow - i - 1;
+      bCol = sqCol + i + 1;
+      if (bRow >= 0 && bCol <= 7) {
+        if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          break;
+        }
+        squares[bRow * 8 + bCol].classList.add("movelight");
+        if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          squares[bRow * 8 + bCol].classList.add("takelight");
+          break;
+        }
+      }
+    }
+    // Bishop Column Down
+    for (let i = 0; i <= 7; i++) {
+      bRow = sqRow + i + 1;
+      bCol = sqCol - i - 1;
+      if (bRow <= 7 && bCol >= 0) {
+        if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          break;
+        }
+        squares[bRow * 8 + bCol].classList.add("movelight");
+        if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          squares[bRow * 8 + bCol].classList.add("takelight");
+          break;
+        }
+      }
+    }
+    for (let i = 0; i <= 7; i++) {
+      bRow = sqRow + i + 1;
+      bCol = sqCol + i + 1;
+      if (bRow <= 7 && bCol <= 7) {
+        if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          break;
+        }
+        squares[bRow * 8 + bCol].classList.add("movelight");
+        if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          squares[bRow * 8 + bCol].classList.add("takelight");
+          break;
+        }
+      }
+    }
+  } else if (square.textContent == pieces.black.queen) {
+    selectedSquare = square;
+    // Rook Column moves
+    for (let i = sqRow - 1; i >= 0; i--) {
+      if (whitePieces.indexOf(squares[i * 8 + sqCol].textContent) != -1) {
+        squares[i * 8 + sqCol].classList.add("takelight");
+      }
+      if (squares[i * 8 + sqCol].textContent != "") {
+        break;
+      }
+      squares[i * 8 + sqCol].classList.add("movelight");
+    }
+    for (let i = sqRow + 1; i <= 7; i++) {
+      if (whitePieces.indexOf(squares[i * 8 + sqCol].textContent) != -1) {
+        squares[i * 8 + sqCol].classList.add("takelight");
+      }
+      if (squares[i * 8 + sqCol].textContent != "") {
+        break;
+      }
+      squares[i * 8 + sqCol].classList.add("movelight");
+    }
+
+    // // Rook Row moves
+    for (let i = sqCol + 1; i <= 7; i++) {
+      if (whitePieces.indexOf(squares[sqRow * 8 + i].textContent) != -1) {
+        squares[sqRow * 8 + i].classList.add("takelight");
+      }
+      if (squares[sqRow * 8 + i].textContent != "") {
+        break;
+      }
+      squares[sqRow * 8 + i].classList.add("movelight");
+    }
+    for (let i = sqCol - 1; i >= 0; i--) {
+      if (whitePieces.indexOf(squares[sqRow * 8 + i].textContent) != -1) {
+        squares[sqRow * 8 + i].classList.add("takelight");
+      }
+      if (squares[sqRow * 8 + i].textContent != "") {
+        break;
+      }
+      squares[sqRow * 8 + i].classList.add("movelight");
+    }
+
+    // Bishop Column Up
+    for (let i = 0; i <= 7; i++) {
+      bRow = sqRow - i - 1;
+      bCol = sqCol - i - 1;
+
+      if (bRow >= 0 && bCol >= 0) {
+        if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          break;
+        }
+        squares[bRow * 8 + bCol].classList.add("movelight");
+        if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          squares[bRow * 8 + bCol].classList.add("takelight");
+          break;
+        }
+      }
+    }
+    for (let i = 0; i <= 7; i++) {
+      bRow = sqRow - i - 1;
+      bCol = sqCol + i + 1;
+      if (bRow >= 0 && bCol <= 7) {
+        if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          break;
+        }
+        squares[bRow * 8 + bCol].classList.add("movelight");
+        if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          squares[bRow * 8 + bCol].classList.add("takelight");
+          break;
+        }
+      }
+    }
+    // Bishop Column Down
+    for (let i = 0; i <= 7; i++) {
+      bRow = sqRow + i + 1;
+      bCol = sqCol - i - 1;
+      if (bRow <= 7 && bCol >= 0) {
+        if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          break;
+        }
+        squares[bRow * 8 + bCol].classList.add("movelight");
+        if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          squares[bRow * 8 + bCol].classList.add("takelight");
+          break;
+        }
+      }
+    }
+    for (let i = 0; i <= 7; i++) {
+      bRow = sqRow + i + 1;
+      bCol = sqCol + i + 1;
+      if (bRow <= 7 && bCol <= 7) {
+        if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          break;
+        }
+        squares[bRow * 8 + bCol].classList.add("movelight");
+        if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          squares[bRow * 8 + bCol].classList.add("takelight");
+          break;
+        }
+      }
+    }
   } else if (square.textContent == pieces.black.king) {
     selectedSquare = square;
     for (i = 0; i < 3; i++) {
