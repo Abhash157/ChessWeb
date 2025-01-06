@@ -93,7 +93,8 @@ function squareClick(square) {
     analyzeCheckPawnBlack(pieces.black, whitePieces);
   } else {
     moveBlack(square);
-    analyzeCheckPawnWhite(pieces.white, blackPieces);
+    analyzeCheckPawnWhite(pieces.white, pieces.black);
+    analyzeCheck(pieces.white);
   }
 }
 
@@ -101,10 +102,10 @@ function analyzeCheckPawnWhite(piece, opp) {
   if (
     piece.kingRow > 0 &&
     ((squares[(piece.kingRow - 1) * 8 + (piece.kingCol - 1)].textContent ==
-      opp[5] &&
+      opp.pawn &&
       piece.kingCol > 0) ||
       (squares[(piece.kingRow - 1) * 8 + (piece.kingCol + 1)].textContent ==
-        opp[5] &&
+        opp.pawn &&
         piece.kingCol < 7))
   ) {
     piece.checked = true;
@@ -114,7 +115,7 @@ function analyzeCheckPawnWhite(piece, opp) {
   }
 }
 // function analyzeCheck(piece, opp) {
-//   // Pawn
+//   // Bishop
 // }
 
 function moveWhite(square) {
@@ -461,15 +462,14 @@ function moveWhite(square) {
   }
 }
 
-
 function analyzeCheckPawnBlack(piece, opp) {
   if (
     (piece.kingRow < 7 &&
       squares[(piece.kingRow + 1) * 8 + (piece.kingCol - 1)].textContent ==
-        opp[5] &&
+        opp.pawn &&
       piece.kingCol > 0) ||
     (squares[(piece.kingRow + 1) * 8 + (piece.kingCol + 1)].textContent ==
-      opp[5] &&
+      opp.pawn &&
       piece.kingCol < 7)
   ) {
     piece.checked = true;
