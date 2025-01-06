@@ -91,9 +91,11 @@ function squareClick(square) {
   if (turn == 0) {
     moveWhite(square);
     analyzeCheckPawnBlack(pieces.black, whitePieces);
+    analyzeCheck(pieces.black, pieces.white);
   } else {
     moveBlack(square);
-    analyzeCheckPawnWhite(pieces.white, blackPieces);
+    analyzeCheckPawnWhite(pieces.white, pieces.black);
+    analyzeCheck(pieces.white, pieces.black);
   }
 }
 
@@ -101,10 +103,10 @@ function analyzeCheckPawnWhite(piece, opp) {
   if (
     piece.kingRow > 0 &&
     ((squares[(piece.kingRow - 1) * 8 + (piece.kingCol - 1)].textContent ==
-      opp[5] &&
+      opp.pawn &&
       piece.kingCol > 0) ||
       (squares[(piece.kingRow - 1) * 8 + (piece.kingCol + 1)].textContent ==
-        opp[5] &&
+        opp.pawn &&
         piece.kingCol < 7))
   ) {
     piece.checked = true;
@@ -113,9 +115,43 @@ function analyzeCheckPawnWhite(piece, opp) {
     piece.checked = false;
   }
 }
-// function analyzeCheck(piece, opp) {
-//   // Pawn
-// }
+function analyzeCheck(piece, opp) {
+  row = piece.kingRow;
+  col = piece.kingCol;
+  // Rook
+  for (i = 1; i <= row; i++) {
+    if (squares[(row - i) * 8 + col].textContent == opp.rook) {
+      squares[row * 8 + col].classList.add("dangerlight");
+    }
+    if (squares[(row - i) * 8 + col].textContent != "") {
+      break;
+    }
+  }
+  for (i = row + 1; i <= 7; i++) {
+    if (squares[i * 8 + col].textContent == opp.rook) {
+      squares[row * 8 + col].classList.add("dangerlight");
+    }
+    if (squares[i * 8 + col].textContent != "") {
+      break;
+    }
+  }
+  for (i = 1; i <= col; i++) {
+    if (squares[row * 8 + col - i].textContent == opp.rook) {
+      squares[row * 8 + col].classList.add("dangerlight");
+    }
+    if (squares[row * 8 + col - i].textContent != "") {
+      break;
+    }
+  }
+  for (i = col + 1; i <= 7; i++) {
+    if (squares[row * 8 + i].textContent == opp.rook) {
+      squares[row * 8 + col].classList.add("dangerlight");
+    }
+    if (squares[row * 8 + i].textContent != "") {
+      break;
+    }
+  }
+}
 
 function moveWhite(square) {
   sqRow = parseInt(square.dataset.row);
@@ -461,15 +497,14 @@ function moveWhite(square) {
   }
 }
 
-
 function analyzeCheckPawnBlack(piece, opp) {
   if (
     (piece.kingRow < 7 &&
       squares[(piece.kingRow + 1) * 8 + (piece.kingCol - 1)].textContent ==
-        opp[5] &&
+        opp.pawn &&
       piece.kingCol > 0) ||
     (squares[(piece.kingRow + 1) * 8 + (piece.kingCol + 1)].textContent ==
-      opp[5] &&
+      opp.pawn &&
       piece.kingCol < 7)
   ) {
     piece.checked = true;
@@ -477,7 +512,6 @@ function analyzeCheckPawnBlack(piece, opp) {
   } else {
     piece.checked = false;
   }
-  debug(piece.kingRow + " " + piece.kingCol);
 }
 
 function moveBlack(square) {
