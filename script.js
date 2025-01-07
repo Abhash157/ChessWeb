@@ -14,7 +14,7 @@ const pieces = {
     rook: "\u2656",
     bishop: "\u2657",
     knight: "\u2658",
-    pawn: "\u2659",
+    // pawn: "\u2659",
     checked: false,
     checkSquare: 0,
     kingRow: 7,
@@ -26,7 +26,7 @@ const pieces = {
     rook: "\u265C",
     bishop: "\u265D",
     knight: "\u265E",
-    pawn: "\u265F",
+    // pawn: "\u265F",
     checked: false,
     checkSquare: 0,
     kingRow: 0,
@@ -151,6 +151,39 @@ function analyzeCheck(piece, opp) {
       break;
     }
   }
+
+  //Knight
+  nRow = [row - 1, row + 1];
+  nRow2 = [row - 2, row + 2];
+  nCol = [col - 1, col + 1];
+  nCol2 = [col - 2, col + 2];
+
+  nRow.forEach((knightRow) => {
+    nCol2.forEach((knightCol) => {
+      if (
+        knightRow * 8 + knightCol < 63 &&
+        knightRow * 8 + knightCol > 0 &&
+        knightCol <= 7 &&
+        knightCol >= 0 &&
+        squares[knightRow * 8 + knightCol].textContent == opp.knight
+      ) {
+        squares[row * 8 + col].classList.add("dangerlight");
+      }
+    });
+  });
+  nRow2.forEach((knightRow) => {
+    nCol.forEach((knightCol) => {
+      if (
+        knightRow * 8 + knightCol <= 63 &&
+        knightRow * 8 + knightCol >= 0 &&
+        knightCol <= 7 &&
+        knightCol >= 0 &&
+        squares[knightRow * 8 + knightCol].textContent == opp.knight
+      ) {
+        squares[row * 8 + col].classList.add("dangerlight");
+      }
+    });
+  });
 }
 
 function moveWhite(square) {
