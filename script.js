@@ -118,9 +118,11 @@ function analyzeCheckPawnWhite(piece, opp) {
 function analyzeCheck(piece, opp) {
   row = piece.kingRow;
   col = piece.kingCol;
+  piece.checked = false;
   // Rook
   for (i = 1; i <= row; i++) {
     if (squares[(row - i) * 8 + col].textContent == opp.rook) {
+      piece.checked = true;
       squares[row * 8 + col].classList.add("dangerlight");
     }
     if (squares[(row - i) * 8 + col].textContent != "") {
@@ -129,6 +131,7 @@ function analyzeCheck(piece, opp) {
   }
   for (i = row + 1; i <= 7; i++) {
     if (squares[i * 8 + col].textContent == opp.rook) {
+      piece.checked = true;
       squares[row * 8 + col].classList.add("dangerlight");
     }
     if (squares[i * 8 + col].textContent != "") {
@@ -137,6 +140,7 @@ function analyzeCheck(piece, opp) {
   }
   for (i = 1; i <= col; i++) {
     if (squares[row * 8 + col - i].textContent == opp.rook) {
+      piece.checked = true;
       squares[row * 8 + col].classList.add("dangerlight");
     }
     if (squares[row * 8 + col - i].textContent != "") {
@@ -145,14 +149,90 @@ function analyzeCheck(piece, opp) {
   }
   for (i = col + 1; i <= 7; i++) {
     if (squares[row * 8 + i].textContent == opp.rook) {
+      piece.checked = true;
       squares[row * 8 + col].classList.add("dangerlight");
     }
     if (squares[row * 8 + i].textContent != "") {
       break;
     }
   }
-}
 
+  //Knight
+  nRow = [row - 1, row + 1];
+  nRow2 = [row - 2, row + 2];
+  nCol = [col - 1, col + 1];
+  nCol2 = [col - 2, col + 2];
+
+  nRow.forEach((knightRow) => {
+    nCol2.forEach((knightCol) => {
+      if (
+        knightRow * 8 + knightCol < 63 &&
+        knightRow * 8 + knightCol > 0 &&
+        knightCol <= 7 &&
+        knightCol >= 0 &&
+        squares[knightRow * 8 + knightCol].textContent == opp.knight
+      ) {
+        piece.checked = true;
+        squares[row * 8 + col].classList.add("dangerlight");
+      }
+    });
+  });
+  nRow2.forEach((knightRow) => {
+    nCol.forEach((knightCol) => {
+      if (
+        knightRow * 8 + knightCol <= 63 &&
+        knightRow * 8 + knightCol >= 0 &&
+        knightCol <= 7 &&
+        knightCol >= 0 &&
+        squares[knightRow * 8 + knightCol].textContent == opp.knight
+      ) {
+        piece.checked = true;
+        squares[row * 8 + col].classList.add("dangerlight");
+      }
+    });
+  });
+
+  // Bishop
+  function bishopCheckCondition() {
+    if (bRow >= 0 && bCol >= 0 && bRow < 8 && bCol < 8) {
+      if (squares[bRow * 8 + bCol].textContent == opp.bishop) {
+        piece.checked = true;
+        squares[row * 8 + col].classList.add("dangerlight");
+      }
+      if (squares[bRow * 8 + bCol].textContent != "") {
+        interrupt = true;
+      }
+    }
+  }
+  for (let i = 0; i <= 7; i++) {
+    bRow = row - i - 1;
+    bCol = col - i - 1;
+    interrupt = false;
+    bishopCheckCondition();
+    if (interrupt) break;
+  }
+  for (let i = 0; i <= 7; i++) {
+    bRow = row - i - 1;
+    bCol = col + i + 1;
+
+    bishopCheckCondition();
+    if (interrupt) break;
+  }
+  for (let i = 0; i <= 7; i++) {
+    bRow = row + i + 1;
+    bCol = col - i - 1;
+
+    bishopCheckCondition();
+    if (interrupt) break;
+  }
+  for (let i = 0; i <= 7; i++) {
+    bRow = row + i + 1;
+    bCol = col + i + 1;
+
+    bishopCheckCondition();
+    if (interrupt) break;
+  }
+}
 function moveWhite(square) {
   sqRow = parseInt(square.dataset.row);
   sqCol = parseInt(square.dataset.col);
@@ -168,6 +248,7 @@ function moveWhite(square) {
         if (selectedSquare.textContent == pieces.white.king) {
           pieces.white.kingRow = sqRow;
           pieces.white.kingCol = sqCol;
+          selectedSquare.classList.remove("dangerlight");
         }
 
         square.textContent = selectedSquare.textContent;
@@ -180,7 +261,7 @@ function moveWhite(square) {
     for (let i = 0; i < 64; i++) {
       squares[i].classList.remove("movelight");
       squares[i].classList.remove("takelight");
-      squares[i].classList.remove("dangerlight");
+      if (!pieces.white.checked) squares[i].classList.remove("dangerlight");
     }
     selectedSquare = null;
     // debug(pieces.black.checked);
@@ -513,7 +594,6 @@ function analyzeCheckPawnBlack(piece, opp) {
     piece.checked = false;
   }
 }
-
 function moveBlack(square) {
   sqRow = parseInt(square.dataset.row);
   sqCol = parseInt(square.dataset.col);
@@ -521,10 +601,6 @@ function moveBlack(square) {
   // analyzeCheck(pieces.black, whitePieces);
 
   if (selectedSquare) {
-    for (let i = 0; i < 64; i++) {
-      squares[i].classList.remove("dangerlight");
-    }
-
     // Move piece to new square if it's not the same square
     if (square !== selectedSquare) {
       if (
@@ -534,6 +610,7 @@ function moveBlack(square) {
         if (selectedSquare.textContent == pieces.black.king) {
           pieces.black.kingRow = sqRow;
           pieces.black.kingCol = sqCol;
+          selectedSquare.classList.remove("dangerlight");
         }
 
         square.textContent = selectedSquare.textContent;
