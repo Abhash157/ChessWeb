@@ -193,18 +193,44 @@ function analyzeCheck(piece, opp) {
   });
 
   // Bishop
-  for (let i = 0; i <= 7; i++) {
-    bRow = row - i - 1;
-    bCol = col - i - 1;
-
-    if (bRow >= 0 && bCol >= 0) {
+  function bishopCheckCondition() {
+    if (bRow >= 0 && bCol >= 0 && bRow < 8 && bCol < 8) {
       if (squares[bRow * 8 + bCol].textContent == opp.bishop) {
+        piece.checked = true;
         squares[row * 8 + col].classList.add("dangerlight");
       }
       if (squares[bRow * 8 + bCol].textContent != "") {
-        break;
+        interrupt = true;
       }
     }
+  }
+  for (let i = 0; i <= 7; i++) {
+    bRow = row - i - 1;
+    bCol = col - i - 1;
+    interrupt = false;
+    bishopCheckCondition();
+    if (interrupt) break;
+  }
+  for (let i = 0; i <= 7; i++) {
+    bRow = row - i - 1;
+    bCol = col + i + 1;
+
+    bishopCheckCondition();
+    if (interrupt) break;
+  }
+  for (let i = 0; i <= 7; i++) {
+    bRow = row + i + 1;
+    bCol = col - i - 1;
+
+    bishopCheckCondition();
+    if (interrupt) break;
+  }
+  for (let i = 0; i <= 7; i++) {
+    bRow = row + i + 1;
+    bCol = col + i + 1;
+
+    bishopCheckCondition();
+    if (interrupt) break;
   }
 }
 function moveWhite(square) {
