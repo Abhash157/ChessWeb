@@ -1,2 +1,2 @@
 (ON DEVELOPMENT)
-You can test this game using this link: https://abhash.me/Chess
+You can test this game using this link: https://abhash.me/ChessWeb
