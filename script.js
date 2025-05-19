@@ -33,7 +33,8 @@ const gameState = {
     white: [],
     black: []
   },
-  moveCount: 1
+  moveCount: 1,
+  gameOver: false
 };
 
 // Chess pieces Unicode symbols
@@ -91,6 +92,8 @@ const blackPieces = [
  * @param {HTMLElement} square - The square that was clicked
  */
 function squareClick(square) {
+  if (gameState.gameOver) return;
+
   if (turn === PLAYER.WHITE) {
     moveWhite(square);
     analyzeCheckPawnBlack(pieces.black, whitePieces);
@@ -357,8 +360,8 @@ function moveWhite(square) {
   } else if (square.textContent === pieces.white.king) {
     // Handle king selection
     handleWhiteKingSelect(square, sqRow, sqCol);
-  } else if (!pieces.white.checked) {
-    // Handle other piece selection when not in check
+  } else if (whitePieces.indexOf(square.textContent) !== -1) {
+    // Handle other piece selection
     handleWhitePieceSelect(square, sqRow, sqCol);
   }
 }
@@ -380,8 +383,8 @@ function moveBlack(square) {
   } else if (square.textContent === pieces.black.king) {
     // Handle king selection
     handleBlackKingSelect(square, sqRow, sqCol);
-  } else if (!pieces.black.checked) {
-    // Handle other piece selection when not in check
+  } else if (blackPieces.indexOf(square.textContent) !== -1) {
+    // Handle other piece selection
     handleBlackPieceSelect(square, sqRow, sqCol);
   }
 }
@@ -637,16 +640,19 @@ function algebraicNotation(move) {
  * Updates the game status display
  */
 function updateGameStatus() {
-  if (turn === PLAYER.WHITE) {
-    gameStatus.textContent = "White to move";
-  } else {
-    gameStatus.textContent = "Black to move";
+  if (gameState.gameOver) {
+    // checkForEndOfGame has already set the message for checkmate/stalemate
+    return;
   }
-  
+
   if (pieces.white.checked) {
     gameStatus.textContent = "White is in check!";
   } else if (pieces.black.checked) {
     gameStatus.textContent = "Black is in check!";
+  } else if (turn === PLAYER.WHITE) {
+    gameStatus.textContent = "White to move";
+  } else {
+    gameStatus.textContent = "Black to move";
   }
 }
 
@@ -831,6 +837,7 @@ function handleWhitePieceMove(square, sqRow, sqCol) {
       updateGameStatus();
       updateCapturedPieces();
       updateMoveHistory();
+      checkForEndOfGame();
     }
   }
   
@@ -849,6 +856,17 @@ function cleanupAfterMove() {
     squares[i].classList.remove("movelight");
     squares[i].classList.remove("takelight");
   }
+  
+  // Remove dangerlight from both kings if they are no longer in check
+  if (!pieces.white.checked) {
+    const whiteKingSquare = squares[pieces.white.kingRow * 8 + pieces.white.kingCol];
+    whiteKingSquare.classList.remove("dangerlight");
+  }
+  if (!pieces.black.checked) {
+    const blackKingSquare = squares[pieces.black.kingRow * 8 + pieces.black.kingCol];
+    blackKingSquare.classList.remove("dangerlight");
+  }
+  
   selectedSquare = null;
 }
 
@@ -861,49 +879,46 @@ function cleanupAfterMove() {
 function handleWhiteKingSelect(square, sqRow, sqCol) {
   selectedSquare = square;
   square.classList.add("highlight");
-  
+  const pieceColor = 'white';
+
+  // Regular king moves
   for (let i = 0; i < 3; i++) {
     for (let j = 0; j < 3; j++) {
-      let moveCell = (sqRow - 1 + i) * 8 + sqCol - 1 + j;
-      if (
-        moveCell > 63 ||
-        moveCell < 0 ||
-        (sqCol % 8 === 0 && j === 0) ||
-        (sqCol % 8 === 7 && j === 2)
-      ) {
-        continue; // King Corner overflow controlled
-      }
-      if (whitePieces.indexOf(squares[moveCell].textContent) === -1) {
-        squares[moveCell].classList.add("movelight");
+      if (i === 1 && j === 1) continue; // Skip the king's current square
+
+      const targetRow = sqRow - 1 + i;
+      const targetCol = sqCol - 1 + j;
+
+      if (targetRow >= 0 && targetRow < 8 && targetCol >= 0 && targetCol < 8) {
+        const targetSquare = squares[targetRow * 8 + targetCol];
+        if (whitePieces.indexOf(targetSquare.textContent) === -1) { // Not an own piece
+          if (isMoveLegal(square, targetSquare, pieceColor)) {
+            // Determine if it's a capture or a move to an empty square for class styling
+            if (targetSquare.textContent === "") {
+              targetSquare.classList.add("movelight");
+            } else {
+              targetSquare.classList.add("takelight");
+            }
+          }
+        }
       }
     }
   }
 
   // Add castling moves
-  if (gameState.whiteCanCastleKingside && !pieces.white.checked) {
-    // Check if squares between king and rook are empty
-    if (squares[7 * 8 + 5].textContent === "" && 
-        squares[7 * 8 + 6].textContent === "" &&
-        squares[7 * 8 + 7].textContent === pieces.white.rook) {
-      // Check if squares are not under attack
-      if (!isSquareUnderAttack(7, 5, "white") && 
-          !isSquareUnderAttack(7, 6, "white")) {
-        squares[7 * 8 + 6].classList.add("movelight");
-      }
+  // Kingside castling
+  if (gameState.whiteCanCastleKingside) {
+    const targetSquareKingside = squares[7 * 8 + 6];
+    // isMoveLegal for castling will check path emptiness, rook presence, and not castling through/into/out of check.
+    if (isMoveLegal(square, targetSquareKingside, pieceColor)) {
+      targetSquareKingside.classList.add("movelight"); 
     }
   }
-  
-  if (gameState.whiteCanCastleQueenside && !pieces.white.checked) {
-    // Check if squares between king and rook are empty
-    if (squares[7 * 8 + 3].textContent === "" && 
-        squares[7 * 8 + 2].textContent === "" &&
-        squares[7 * 8 + 1].textContent === "" &&
-        squares[7 * 8 + 0].textContent === pieces.white.rook) {
-      // Check if squares are not under attack
-      if (!isSquareUnderAttack(7, 3, "white") && 
-          !isSquareUnderAttack(7, 2, "white")) {
-        squares[7 * 8 + 2].classList.add("movelight");
-      }
+  // Queenside castling
+  if (gameState.whiteCanCastleQueenside) {
+    const targetSquareQueenside = squares[7 * 8 + 2];
+    if (isMoveLegal(square, targetSquareQueenside, pieceColor)) {
+      targetSquareQueenside.classList.add("movelight");
     }
   }
 }
@@ -940,32 +955,40 @@ function handleWhitePieceSelect(square, sqRow, sqCol) {
  * @param {number} sqCol - The column of the pawn
  */
 function handleWhitePawnSelect(square, sqRow, sqCol) {
-  // Highlight forward move (one square)
-  if (sqRow > 0 && squares[(sqRow - 1) * 8 + sqCol].textContent === "") {
-    squares[(sqRow - 1) * 8 + sqCol].classList.add("movelight");
-    
-    // Highlight forward move (two squares) if pawn is on starting position
-    if (sqRow === 6 && squares[(sqRow - 2) * 8 + sqCol].textContent === "") {
-      squares[(sqRow - 2) * 8 + sqCol].classList.add("movelight");
+  const pieceColor = 'white';
+  // Forward move (one square)
+  if (sqRow > 0) {
+    const targetSquareOne = squares[(sqRow - 1) * 8 + sqCol];
+    if (targetSquareOne.textContent === "" && isMoveLegal(square, targetSquareOne, pieceColor)) {
+      targetSquareOne.classList.add("movelight");
+    }
+    // Forward move (two squares) if pawn is on starting position
+    if (sqRow === 6) {
+      const targetSquareTwo = squares[(sqRow - 2) * 8 + sqCol];
+      // Must also ensure path for 1 square move is clear for 2 square move highlighting (implicitly handled by isMoveLegal for targetSquareTwo if first move is blocked)
+      if (targetSquareOne.textContent === "" && targetSquareTwo.textContent === "" && isMoveLegal(square, targetSquareTwo, pieceColor)) {
+        targetSquareTwo.classList.add("movelight");
+      }
     }
   }
   
-  // Highlight diagonal captures
+  // Diagonal captures
   for (let colOffset of [-1, 1]) {
-    const newCol = sqCol + colOffset;
-    if (newCol >= 0 && newCol < 8) {
-      const target = squares[(sqRow - 1) * 8 + newCol];
-      
-      // Standard capture
-      if (blackPieces.indexOf(target.textContent) !== -1) {
-        target.classList.add("takelight");
-      }
-      
-      // En passant capture
-      if (gameState.enPassantTarget && 
-          sqRow === gameState.enPassantTarget.row + 1 && 
-          newCol === gameState.enPassantTarget.col) {
-        target.classList.add("takelight");
+    if (sqRow > 0) {
+      const newCol = sqCol + colOffset;
+      if (newCol >= 0 && newCol < 8) {
+        const targetSquare = squares[(sqRow - 1) * 8 + newCol];
+        // Standard capture
+        if (blackPieces.indexOf(targetSquare.textContent) !== -1 && isMoveLegal(square, targetSquare, pieceColor)) {
+          targetSquare.classList.add("takelight");
+        }
+        // En passant capture
+        if (gameState.enPassantTarget && 
+            (sqRow - 1) === gameState.enPassantTarget.row && 
+            newCol === gameState.enPassantTarget.col &&
+            isMoveLegal(square, targetSquare, pieceColor)) { // targetSquare for en passant is the landing square
+          targetSquare.classList.add("takelight");
+        }
       }
     }
   }
@@ -978,7 +1001,7 @@ function handleWhitePawnSelect(square, sqRow, sqCol) {
  * @param {number} sqCol - The column of the rook
  */
 function handleWhiteRookSelect(square, sqRow, sqCol) {
-  // Highlight moves in all four directions (up, down, left, right)
+  const pieceColor = 'white';
   const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
   
   for (const [rowDir, colDir] of directions) {
@@ -986,18 +1009,19 @@ function handleWhiteRookSelect(square, sqRow, sqCol) {
     let newCol = sqCol + colDir;
     
     while (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
-      const target = squares[newRow * 8 + newCol];
+      const targetSquare = squares[newRow * 8 + newCol];
       
-      if (target.textContent === "") {
-        // Empty square
-        target.classList.add("movelight");
-      } else if (blackPieces.indexOf(target.textContent) !== -1) {
-        // Opponent's piece
-        target.classList.add("takelight");
-        break;
-      } else {
-        // Own piece
-        break;
+      if (targetSquare.textContent === "") {
+        if (isMoveLegal(square, targetSquare, pieceColor)) {
+          targetSquare.classList.add("movelight");
+        }
+      } else if (blackPieces.indexOf(targetSquare.textContent) !== -1) {
+        if (isMoveLegal(square, targetSquare, pieceColor)) {
+          targetSquare.classList.add("takelight");
+        }
+        break; // Path blocked by opponent piece
+      } else { // Own piece
+        break; // Path blocked by own piece
       }
       
       newRow += rowDir;
@@ -1013,6 +1037,7 @@ function handleWhiteRookSelect(square, sqRow, sqCol) {
  * @param {number} sqCol - The column of the knight
  */
 function handleWhiteKnightSelect(square, sqRow, sqCol) {
+  const pieceColor = 'white';
   const knightMoves = [
     [-2, -1], [-2, 1], [-1, -2], [-1, 2],
     [1, -2], [1, 2], [2, -1], [2, 1]
@@ -1023,15 +1048,17 @@ function handleWhiteKnightSelect(square, sqRow, sqCol) {
     const newCol = sqCol + colOffset;
     
     if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
-      const target = squares[newRow * 8 + newCol];
+      const targetSquare = squares[newRow * 8 + newCol];
       
-      if (target.textContent === "") {
-        // Empty square
-        target.classList.add("movelight");
-      } else if (blackPieces.indexOf(target.textContent) !== -1) {
-        // Opponent's piece
-        target.classList.add("takelight");
-      }
+      if (targetSquare.textContent === "") {
+        if (isMoveLegal(square, targetSquare, pieceColor)) {
+          targetSquare.classList.add("movelight");
+        }
+      } else if (blackPieces.indexOf(targetSquare.textContent) !== -1) {
+        if (isMoveLegal(square, targetSquare, pieceColor)) {
+          targetSquare.classList.add("takelight");
+        }
+      } // No action if it's an own piece
     }
   }
 }
@@ -1043,7 +1070,7 @@ function handleWhiteKnightSelect(square, sqRow, sqCol) {
  * @param {number} sqCol - The column of the bishop
  */
 function handleWhiteBishopSelect(square, sqRow, sqCol) {
-  // Highlight moves in all four diagonal directions
+  const pieceColor = 'white';
   const diagonals = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
   
   for (const [rowDir, colDir] of diagonals) {
@@ -1051,18 +1078,19 @@ function handleWhiteBishopSelect(square, sqRow, sqCol) {
     let newCol = sqCol + colDir;
     
     while (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
-      const target = squares[newRow * 8 + newCol];
+      const targetSquare = squares[newRow * 8 + newCol];
       
-      if (target.textContent === "") {
-        // Empty square
-        target.classList.add("movelight");
-      } else if (blackPieces.indexOf(target.textContent) !== -1) {
-        // Opponent's piece
-        target.classList.add("takelight");
-        break;
-      } else {
-        // Own piece
-        break;
+      if (targetSquare.textContent === "") {
+        if (isMoveLegal(square, targetSquare, pieceColor)) {
+          targetSquare.classList.add("movelight");
+        }
+      } else if (blackPieces.indexOf(targetSquare.textContent) !== -1) {
+        if (isMoveLegal(square, targetSquare, pieceColor)) {
+          targetSquare.classList.add("takelight");
+        }
+        break; // Path blocked by opponent piece
+      } else { // Own piece
+        break; // Path blocked by own piece
       }
       
       newRow += rowDir;
@@ -1188,6 +1216,7 @@ function handleBlackPieceMove(square, sqRow, sqCol) {
       updateGameStatus();
       updateCapturedPieces();
       updateMoveHistory();
+      checkForEndOfGame();
     }
   }
   
@@ -1229,49 +1258,45 @@ function handleBlackPieceSelect(square, sqRow, sqCol) {
 function handleBlackKingSelect(square, sqRow, sqCol) {
   selectedSquare = square;
   square.classList.add("highlight");
-  
+  const pieceColor = 'black';
+
+  // Regular king moves
   for (let i = 0; i < 3; i++) {
     for (let j = 0; j < 3; j++) {
-      let moveCell = (sqRow - 1 + i) * 8 + sqCol - 1 + j;
-      if (
-        moveCell > 63 ||
-        moveCell < 0 ||
-        (sqCol % 8 === 0 && j === 0) ||
-        (sqCol % 8 === 7 && j === 2)
-      ) {
-        continue; // King Corner overflow controlled
-      }
-      if (blackPieces.indexOf(squares[moveCell].textContent) === -1) {
-        squares[moveCell].classList.add("movelight");
+      if (i === 1 && j === 1) continue; // Skip king's current square
+
+      const targetRow = sqRow - 1 + i;
+      const targetCol = sqCol - 1 + j;
+
+      if (targetRow >= 0 && targetRow < 8 && targetCol >= 0 && targetCol < 8) {
+        const targetSquare = squares[targetRow * 8 + targetCol];
+        if (blackPieces.indexOf(targetSquare.textContent) === -1) { // Not an own piece
+          if (isMoveLegal(square, targetSquare, pieceColor)) {
+            if (targetSquare.textContent === "") {
+              targetSquare.classList.add("movelight");
+            } else { // Opponent piece for capture
+              targetSquare.classList.add("takelight");
+            }
+          }
+        }
       }
     }
   }
 
   // Add castling moves
-  if (gameState.blackCanCastleKingside && !pieces.black.checked) {
-    // Check if squares between king and rook are empty
-    if (squares[0 * 8 + 5].textContent === "" && 
-        squares[0 * 8 + 6].textContent === "" &&
-        squares[0 * 8 + 7].textContent === pieces.black.rook) {
-      // Check if squares are not under attack
-      if (!isSquareUnderAttack(0, 5, "black") && 
-          !isSquareUnderAttack(0, 6, "black")) {
-        squares[0 * 8 + 6].classList.add("movelight");
-      }
+  // Kingside castling
+  if (gameState.blackCanCastleKingside) {
+    const targetSquareKingside = squares[0 * 8 + 6]; // Black castles on row 0
+    // isMoveLegal for castling will check path emptiness, rook presence, and not castling through/into/out of check.
+    if (isMoveLegal(square, targetSquareKingside, pieceColor)) {
+      targetSquareKingside.classList.add("movelight");
     }
   }
-  
-  if (gameState.blackCanCastleQueenside && !pieces.black.checked) {
-    // Check if squares between king and rook are empty
-    if (squares[0 * 8 + 3].textContent === "" && 
-        squares[0 * 8 + 2].textContent === "" &&
-        squares[0 * 8 + 1].textContent === "" &&
-        squares[0 * 8 + 0].textContent === pieces.black.rook) {
-      // Check if squares are not under attack
-      if (!isSquareUnderAttack(0, 3, "black") && 
-          !isSquareUnderAttack(0, 2, "black")) {
-        squares[0 * 8 + 2].classList.add("movelight");
-      }
+  // Queenside castling
+  if (gameState.blackCanCastleQueenside) {
+    const targetSquareQueenside = squares[0 * 8 + 2]; // Black castles on row 0
+    if (isMoveLegal(square, targetSquareQueenside, pieceColor)) {
+      targetSquareQueenside.classList.add("movelight");
     }
   }
 }
@@ -1283,32 +1308,39 @@ function handleBlackKingSelect(square, sqRow, sqCol) {
  * @param {number} sqCol - The column of the pawn
  */
 function handleBlackPawnSelect(square, sqRow, sqCol) {
+  const pieceColor = 'black';
   // Highlight forward move (one square)
-  if (sqRow < 7 && squares[(sqRow + 1) * 8 + sqCol].textContent === "") {
-    squares[(sqRow + 1) * 8 + sqCol].classList.add("movelight");
-    
+  if (sqRow < 7) {
+    const targetSquareOne = squares[(sqRow + 1) * 8 + sqCol];
+    if (targetSquareOne.textContent === "" && isMoveLegal(square, targetSquareOne, pieceColor)) {
+      targetSquareOne.classList.add("movelight");
+    }
     // Highlight forward move (two squares) if pawn is on starting position
-    if (sqRow === 1 && squares[(sqRow + 2) * 8 + sqCol].textContent === "") {
-      squares[(sqRow + 2) * 8 + sqCol].classList.add("movelight");
+    if (sqRow === 1) {
+      const targetSquareTwo = squares[(sqRow + 2) * 8 + sqCol];
+      if (targetSquareOne.textContent === "" && targetSquareTwo.textContent === "" && isMoveLegal(square, targetSquareTwo, pieceColor)) {
+        targetSquareTwo.classList.add("movelight");
+      }
     }
   }
   
   // Highlight diagonal captures
   for (let colOffset of [-1, 1]) {
-    const newCol = sqCol + colOffset;
-    if (newCol >= 0 && newCol < 8) {
-      const target = squares[(sqRow + 1) * 8 + newCol];
-      
-      // Standard capture
-      if (whitePieces.indexOf(target.textContent) !== -1) {
-        target.classList.add("takelight");
-      }
-      
-      // En passant capture
-      if (gameState.enPassantTarget && 
-          sqRow === gameState.enPassantTarget.row - 1 && 
-          newCol === gameState.enPassantTarget.col) {
-        target.classList.add("takelight");
+    if (sqRow < 7) {
+      const newCol = sqCol + colOffset;
+      if (newCol >= 0 && newCol < 8) {
+        const targetSquare = squares[(sqRow + 1) * 8 + newCol];
+        // Standard capture
+        if (whitePieces.indexOf(targetSquare.textContent) !== -1 && isMoveLegal(square, targetSquare, pieceColor)) {
+          targetSquare.classList.add("takelight");
+        }
+        // En passant capture
+        if (gameState.enPassantTarget && 
+            (sqRow + 1) === gameState.enPassantTarget.row && 
+            newCol === gameState.enPassantTarget.col &&
+            isMoveLegal(square, targetSquare, pieceColor)) {
+          targetSquare.classList.add("takelight");
+        }
       }
     }
   }
@@ -1321,7 +1353,7 @@ function handleBlackPawnSelect(square, sqRow, sqCol) {
  * @param {number} sqCol - The column of the rook
  */
 function handleBlackRookSelect(square, sqRow, sqCol) {
-  // Highlight moves in all four directions (up, down, left, right)
+  const pieceColor = 'black';
   const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
   
   for (const [rowDir, colDir] of directions) {
@@ -1329,17 +1361,18 @@ function handleBlackRookSelect(square, sqRow, sqCol) {
     let newCol = sqCol + colDir;
     
     while (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
-      const target = squares[newRow * 8 + newCol];
+      const targetSquare = squares[newRow * 8 + newCol];
       
-      if (target.textContent === "") {
-        // Empty square
-        target.classList.add("movelight");
-      } else if (whitePieces.indexOf(target.textContent) !== -1) {
-        // Opponent's piece
-        target.classList.add("takelight");
+      if (targetSquare.textContent === "") {
+        if (isMoveLegal(square, targetSquare, pieceColor)) {
+          targetSquare.classList.add("movelight");
+        }
+      } else if (whitePieces.indexOf(targetSquare.textContent) !== -1) { // Opponent's piece
+        if (isMoveLegal(square, targetSquare, pieceColor)) {
+          targetSquare.classList.add("takelight");
+        }
         break;
-      } else {
-        // Own piece
+      } else { // Own piece
         break;
       }
       
@@ -1356,6 +1389,7 @@ function handleBlackRookSelect(square, sqRow, sqCol) {
  * @param {number} sqCol - The column of the knight
  */
 function handleBlackKnightSelect(square, sqRow, sqCol) {
+  const pieceColor = 'black';
   const knightMoves = [
     [-2, -1], [-2, 1], [-1, -2], [-1, 2],
     [1, -2], [1, 2], [2, -1], [2, 1]
@@ -1366,15 +1400,17 @@ function handleBlackKnightSelect(square, sqRow, sqCol) {
     const newCol = sqCol + colOffset;
     
     if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
-      const target = squares[newRow * 8 + newCol];
+      const targetSquare = squares[newRow * 8 + newCol];
       
-      if (target.textContent === "") {
-        // Empty square
-        target.classList.add("movelight");
-      } else if (whitePieces.indexOf(target.textContent) !== -1) {
-        // Opponent's piece
-        target.classList.add("takelight");
-      }
+      if (targetSquare.textContent === "") {
+        if (isMoveLegal(square, targetSquare, pieceColor)) {
+          targetSquare.classList.add("movelight");
+        }
+      } else if (whitePieces.indexOf(targetSquare.textContent) !== -1) {
+        if (isMoveLegal(square, targetSquare, pieceColor)) {
+          targetSquare.classList.add("takelight");
+        }
+      } // No action if it's an own piece
     }
   }
 }
@@ -1386,7 +1422,7 @@ function handleBlackKnightSelect(square, sqRow, sqCol) {
  * @param {number} sqCol - The column of the bishop
  */
 function handleBlackBishopSelect(square, sqRow, sqCol) {
-  // Highlight moves in all four diagonal directions
+  const pieceColor = 'black';
   const diagonals = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
   
   for (const [rowDir, colDir] of diagonals) {
@@ -1394,17 +1430,18 @@ function handleBlackBishopSelect(square, sqRow, sqCol) {
     let newCol = sqCol + colDir;
     
     while (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
-      const target = squares[newRow * 8 + newCol];
+      const targetSquare = squares[newRow * 8 + newCol];
       
-      if (target.textContent === "") {
-        // Empty square
-        target.classList.add("movelight");
-      } else if (whitePieces.indexOf(target.textContent) !== -1) {
-        // Opponent's piece
-        target.classList.add("takelight");
+      if (targetSquare.textContent === "") {
+        if (isMoveLegal(square, targetSquare, pieceColor)) {
+          targetSquare.classList.add("movelight");
+        }
+      } else if (whitePieces.indexOf(targetSquare.textContent) !== -1) { // Opponent's piece
+        if (isMoveLegal(square, targetSquare, pieceColor)) {
+          targetSquare.classList.add("takelight");
+        }
         break;
-      } else {
-        // Own piece
+      } else { // Own piece
         break;
       }
       
@@ -1427,4 +1464,394 @@ function handleBlackQueenSelect(square, sqRow, sqCol) {
   
   // Then, add bishop-like movements (diagonals)
   handleBlackBishopSelect(square, sqRow, sqCol);
+}
+
+// ============================
+// Checkmate and Stalemate Logic
+// ============================
+
+/**
+ * Checks if the king of the specified color is currently in check.
+ * Does not modify game state or UI.
+ * @param {string} kingColor - 'white' or 'black'.
+ * @returns {boolean} True if the king is in check, false otherwise.
+ */
+function isKingInCheck(kingColor) {
+  const kingData = pieces[kingColor];
+  return isSquareUnderAttack(kingData.kingRow, kingData.kingCol, kingColor);
+}
+
+/**
+ * Gets all pseudo-legal moves for a given piece on a square.
+ * Pseudo-legal moves are moves a piece can make according to its movement rules,
+ * without considering whether the move would leave the king in check.
+ * @param {HTMLElement} squareElement - The square the piece is on.
+ * @param {string} pieceColor - 'white' or 'black', the color of the piece.
+ * @returns {Array<HTMLElement>} An array of target square elements for pseudo-legal moves.
+ */
+function getPseudoLegalMovesForPiece(squareElement, pieceColor) {
+  const pieceText = squareElement.textContent;
+  const sqRow = parseInt(squareElement.dataset.row);
+  const sqCol = parseInt(squareElement.dataset.col);
+  let moves = [];
+
+  if (pieceColor === 'white') {
+    if (pieceText === pieces.white.pawn) moves = getPseudoLegalMovesForPawn(squareElement, sqRow, sqCol, 'white');
+    else if (pieceText === pieces.white.rook) moves = getPseudoLegalMovesForRook(squareElement, sqRow, sqCol, 'white');
+    else if (pieceText === pieces.white.knight) moves = getPseudoLegalMovesForKnight(squareElement, sqRow, sqCol, 'white');
+    else if (pieceText === pieces.white.bishop) moves = getPseudoLegalMovesForBishop(squareElement, sqRow, sqCol, 'white');
+    else if (pieceText === pieces.white.queen) moves = getPseudoLegalMovesForQueen(squareElement, sqRow, sqCol, 'white');
+    else if (pieceText === pieces.white.king) moves = getPseudoLegalMovesForKing(squareElement, sqRow, sqCol, 'white');
+  } else { // black
+    if (pieceText === pieces.black.pawn) moves = getPseudoLegalMovesForPawn(squareElement, sqRow, sqCol, 'black');
+    else if (pieceText === pieces.black.rook) moves = getPseudoLegalMovesForRook(squareElement, sqRow, sqCol, 'black');
+    else if (pieceText === pieces.black.knight) moves = getPseudoLegalMovesForKnight(squareElement, sqRow, sqCol, 'black');
+    else if (pieceText === pieces.black.bishop) moves = getPseudoLegalMovesForBishop(squareElement, sqRow, sqCol, 'black');
+    else if (pieceText === pieces.black.queen) moves = getPseudoLegalMovesForQueen(squareElement, sqRow, sqCol, 'black');
+    else if (pieceText === pieces.black.king) moves = getPseudoLegalMovesForKing(squareElement, sqRow, sqCol, 'black');
+  }
+  return moves;
+}
+
+function getPseudoLegalMovesForPawn(square, sqRow, sqCol, pieceColor) {
+  const moves = [];
+  const opponentPieces = pieceColor === 'white' ? blackPieces : whitePieces;
+  const direction = pieceColor === 'white' ? -1 : 1;
+  const startRow = pieceColor === 'white' ? 6 : 1;
+
+  // Forward one square
+  if (sqRow + direction >= 0 && sqRow + direction < 8 && squares[(sqRow + direction) * 8 + sqCol].textContent === "") {
+    moves.push(squares[(sqRow + direction) * 8 + sqCol]);
+    // Forward two squares (from starting position)
+    if (sqRow === startRow && squares[(sqRow + 2 * direction) * 8 + sqCol].textContent === "") {
+      moves.push(squares[(sqRow + 2 * direction) * 8 + sqCol]);
+    }
+  }
+
+  // Diagonal captures
+  for (let colOffset of [-1, 1]) {
+    const newCol = sqCol + colOffset;
+    if (newCol >= 0 && newCol < 8 && sqRow + direction >= 0 && sqRow + direction < 8) {
+      const targetSquare = squares[(sqRow + direction) * 8 + newCol];
+      if (targetSquare && opponentPieces.indexOf(targetSquare.textContent) !== -1) {
+        moves.push(targetSquare);
+      }
+      // En passant
+      if (gameState.enPassantTarget &&
+          (sqRow + direction) === gameState.enPassantTarget.row &&
+          newCol === gameState.enPassantTarget.col) {
+        // The targetSquare for en passant is the empty square the pawn moves to.
+        moves.push(squares[gameState.enPassantTarget.row * 8 + gameState.enPassantTarget.col]);
+      }
+    }
+  }
+  return moves;
+}
+
+function getPseudoLegalMovesForRook(square, sqRow, sqCol, pieceColor) {
+  const moves = [];
+  const opponentPieces = pieceColor === 'white' ? blackPieces : whitePieces;
+  const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+  for (const [rowDir, colDir] of directions) {
+    let newRow = sqRow + rowDir;
+    let newCol = sqCol + colDir;
+    while (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
+      const targetSquare = squares[newRow * 8 + newCol];
+      if (targetSquare.textContent === "") {
+        moves.push(targetSquare);
+      } else if (opponentPieces.indexOf(targetSquare.textContent) !== -1) {
+        moves.push(targetSquare);
+        break;
+      } else { // Own piece
+        break;
+      }
+      newRow += rowDir;
+      newCol += colDir;
+    }
+  }
+  return moves;
+}
+
+function getPseudoLegalMovesForKnight(square, sqRow, sqCol, pieceColor) {
+  const moves = [];
+  const opponentPieces = pieceColor === 'white' ? blackPieces : whitePieces;
+  const knightMoves = [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]];
+
+  for (const [rowOffset, colOffset] of knightMoves) {
+    const newRow = sqRow + rowOffset;
+    const newCol = sqCol + colOffset;
+    if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
+      const targetSquare = squares[newRow * 8 + newCol];
+      if (targetSquare.textContent === "" || opponentPieces.indexOf(targetSquare.textContent) !== -1) {
+        moves.push(targetSquare);
+      }
+    }
+  }
+  return moves;
+}
+
+function getPseudoLegalMovesForBishop(square, sqRow, sqCol, pieceColor) {
+  const moves = [];
+  const opponentPieces = pieceColor === 'white' ? blackPieces : whitePieces;
+  const diagonals = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
+
+  for (const [rowDir, colDir] of diagonals) {
+    let newRow = sqRow + rowDir;
+    let newCol = sqCol + colDir;
+    while (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
+      const targetSquare = squares[newRow * 8 + newCol];
+      if (targetSquare.textContent === "") {
+        moves.push(targetSquare);
+      } else if (opponentPieces.indexOf(targetSquare.textContent) !== -1) {
+        moves.push(targetSquare);
+        break;
+      } else { // Own piece
+        break;
+      }
+      newRow += rowDir;
+      newCol += colDir;
+    }
+  }
+  return moves;
+}
+
+function getPseudoLegalMovesForQueen(square, sqRow, sqCol, pieceColor) {
+  return [
+    ...getPseudoLegalMovesForRook(square, sqRow, sqCol, pieceColor),
+    ...getPseudoLegalMovesForBishop(square, sqRow, sqCol, pieceColor)
+  ];
+}
+
+function getPseudoLegalMovesForKing(square, sqRow, sqCol, pieceColor) {
+  const moves = [];
+  const opponentPieces = pieceColor === 'white' ? blackPieces : whitePieces;
+  const kingMoves = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
+
+  for (const [rowOffset, colOffset] of kingMoves) {
+    const newRow = sqRow + rowOffset;
+    const newCol = sqCol + colOffset;
+    if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
+      const targetSquare = squares[newRow * 8 + newCol];
+      if (targetSquare.textContent === "" || opponentPieces.indexOf(targetSquare.textContent) !== -1) {
+        moves.push(targetSquare);
+      }
+    }
+  }
+
+  const kingInitialRow = pieceColor === 'white' ? 7 : 0;
+  const canCastleKingside = pieceColor === 'white' ? gameState.whiteCanCastleKingside : gameState.blackCanCastleKingside;
+  const canCastleQueenside = pieceColor === 'white' ? gameState.whiteCanCastleQueenside : gameState.blackCanCastleQueenside;
+  const rookPiece = pieces[pieceColor].rook;
+
+  if (sqRow === kingInitialRow && sqCol === 4) {
+    if (canCastleKingside &&
+        squares[kingInitialRow * 8 + 5].textContent === "" &&
+        squares[kingInitialRow * 8 + 6].textContent === "" &&
+        squares[kingInitialRow * 8 + 7].textContent === rookPiece) {
+      moves.push(squares[kingInitialRow * 8 + 6]);
+    }
+    if (canCastleQueenside &&
+        squares[kingInitialRow * 8 + 3].textContent === "" &&
+        squares[kingInitialRow * 8 + 2].textContent === "" &&
+        squares[kingInitialRow * 8 + 1].textContent === "" &&
+        squares[kingInitialRow * 8 + 0].textContent === rookPiece) {
+      moves.push(squares[kingInitialRow * 8 + 2]);
+    }
+  }
+  return moves;
+}
+
+/**
+ * Checks if a move is legal (i.e., does not leave the player's king in check).
+ * @param {HTMLElement} fromSquareElement - The square the piece is moving from.
+ * @param {HTMLElement} toSquareElement - The square the piece is moving to.
+ * @param {string} playerColor - 'white' or 'black', the color of the player making the move.
+ * @returns {boolean} True if the move is legal, false otherwise.
+ */
+function isMoveLegal(fromSquareElement, toSquareElement, playerColor) {
+  const movingPieceText = fromSquareElement.textContent;
+  const capturedPieceText = toSquareElement.textContent; // Content of target square before move
+  const fromRow = parseInt(fromSquareElement.dataset.row);
+  const fromCol = parseInt(fromSquareElement.dataset.col);
+  const toRow = parseInt(toSquareElement.dataset.row);
+  const toCol = parseInt(toSquareElement.dataset.col);
+
+  let enPassantVictimSquare = null;
+  let originalEnPassantVictimPiece = null;
+
+  // Castling specific simulation variables
+  let castlingRookFromSquare = null;
+  let castlingRookToSquare = null;
+  let originalRookTargetSquarePiece = null; // To save content of the square the rook lands on
+  let isCastlingMove = false;
+
+  let originalKingRow, originalKingCol; // To restore king's logical position
+
+  // --- Pre-move validation, especially for castling ---
+  if (movingPieceText === pieces[playerColor].king) {
+    originalKingRow = pieces[playerColor].kingRow; // Store initial logical king pos before any simulation
+    originalKingCol = pieces[playerColor].kingCol;
+
+    const kingInitialRow = playerColor === 'white' ? 7 : 0;
+    const rookPiece = pieces[playerColor].rook;
+
+    if (fromRow === kingInitialRow && fromCol === 4) { // King moving from its starting position (e.g., E1 or E8)
+      // Kingside Castling attempt (e.g., King E1 to G1, Rook H1 to F1)
+      if (toCol === 6) { // King intends to move to G1/G8
+        const canCastleKingside = playerColor === 'white' ? gameState.whiteCanCastleKingside : gameState.blackCanCastleKingside;
+        if (!canCastleKingside ||
+            squares[kingInitialRow * 8 + 5].textContent !== "" || // F1/F8 must be empty
+            squares[kingInitialRow * 8 + 6].textContent !== "" || // G1/G8 must be empty (king's target square for this move)
+            squares[kingInitialRow * 8 + 7].textContent !== rookPiece || // H1/H8 must contain the correct rook
+            isKingInCheck(playerColor) ||                             // King must not currently be in check
+            isSquareUnderAttack(kingInitialRow, 5, playerColor)       // F1/F8 (square king passes over) must not be attacked
+                                                                      // G1/G8 (landing square) attack is checked after simulation
+           ) {
+          return false; // Castling conditions not met
+        }
+        isCastlingMove = true;
+        castlingRookFromSquare = squares[kingInitialRow * 8 + 7]; // e.g., H1
+        castlingRookToSquare = squares[kingInitialRow * 8 + 5];   // e.g., F1
+      }
+      // Queenside Castling attempt (e.g., King E1 to C1, Rook A1 to D1)
+      else if (toCol === 2) { // King intends to move to C1/C8
+        const canCastleQueenside = playerColor === 'white' ? gameState.whiteCanCastleQueenside : gameState.blackCanCastleQueenside;
+        if (!canCastleQueenside ||
+            squares[kingInitialRow * 8 + 1].textContent !== "" || // B1/B8 must be empty
+            squares[kingInitialRow * 8 + 2].textContent !== "" || // C1/C8 must be empty (king's target square for this move)
+            squares[kingInitialRow * 8 + 3].textContent !== "" || // D1/D8 must be empty
+            squares[kingInitialRow * 8 + 0].textContent !== rookPiece || // A1/A8 must contain the correct rook
+            isKingInCheck(playerColor) ||                             // King must not currently be in check
+            isSquareUnderAttack(kingInitialRow, 3, playerColor)       // D1/D8 (square king passes over) must not be attacked
+                                                                      // C1/C8 (landing square) attack is checked after simulation
+           ) {
+          return false; // Castling conditions not met
+        }
+        isCastlingMove = true;
+        castlingRookFromSquare = squares[kingInitialRow * 8 + 0]; // e.g., A1
+        castlingRookToSquare = squares[kingInitialRow * 8 + 3];   // e.g., D1
+      }
+    }
+  }
+
+
+  // --- Simulate the move on the board elements ---
+  toSquareElement.textContent = movingPieceText;
+  fromSquareElement.textContent = "";
+
+  // Temporarily update king's logical position if it moved
+  if (movingPieceText === pieces[playerColor].king) {
+    // originalKingRow/Col already stored if it's a king move
+    pieces[playerColor].kingRow = toRow;
+    pieces[playerColor].kingCol = toCol;
+  }
+
+  // If castling, also simulate rook move
+  if (isCastlingMove && castlingRookFromSquare && castlingRookToSquare) {
+    originalRookTargetSquarePiece = castlingRookToSquare.textContent; // Save content of rook's destination (e.g., F1/D1)
+    castlingRookToSquare.textContent = castlingRookFromSquare.textContent; // Move rook
+    castlingRookFromSquare.textContent = ""; // Empty rook's original square
+  }
+
+  // Simulate en passant capture (remove the victim pawn)
+  let enPassantPerformed = false;
+  if (movingPieceText === pieces[playerColor].pawn && gameState.enPassantTarget &&
+      toRow === gameState.enPassantTarget.row && toCol === gameState.enPassantTarget.col &&
+      capturedPieceText === "") { // Target square for en-passant move itself is empty
+    const victimPawnRow = playerColor === 'white' ? toRow + 1 : toRow - 1;
+    enPassantVictimSquare = squares[victimPawnRow * 8 + toCol];
+    if(enPassantVictimSquare){ // Check if victim square is valid
+        originalEnPassantVictimPiece = enPassantVictimSquare.textContent;
+        enPassantVictimSquare.textContent = "";
+        enPassantPerformed = true;
+    }
+  }
+
+  // --- Check if the current player's king is in check after the simulated move ---
+  const kingNowInCheck = isKingInCheck(playerColor);
+
+  // --- Undo the simulation ---
+  // Undo en passant victim removal first to maintain correct order
+  if (enPassantPerformed && enPassantVictimSquare) {
+    enPassantVictimSquare.textContent = originalEnPassantVictimPiece;
+  }
+
+  // Undo rook move for castling
+  if (isCastlingMove && castlingRookFromSquare && castlingRookToSquare) {
+    castlingRookFromSquare.textContent = castlingRookToSquare.textContent; // Move rook back
+    castlingRookToSquare.textContent = originalRookTargetSquarePiece; // Restore original content of rook's destination
+  }
+  
+  // Undo the main piece move (king or other piece)
+  fromSquareElement.textContent = movingPieceText; // Restore moving piece
+  toSquareElement.textContent = capturedPieceText;   // Restore captured piece (or empty)
+
+  if (movingPieceText === pieces[playerColor].king) {
+    pieces[playerColor].kingRow = originalKingRow; // Restore king's logical position
+    pieces[playerColor].kingCol = originalKingCol;
+  }
+
+  return !kingNowInCheck; // Move is legal if king is NOT in check
+}
+
+/**
+ * Gets all legal moves for the specified player.
+ * @param {string} playerColor - 'white' or 'black'.
+ * @returns {Array<Object>} An array of legal moves, {from: HTMLElement, to: HTMLElement}.
+ */
+function getAllLegalMovesForPlayer(playerColor) {
+  const legalMoves = [];
+  const playerPieceSymbols = playerColor === 'white' ? whitePieces : blackPieces;
+
+  for (let i = 0; i < squares.length; i++) {
+    const fromSquareElement = squares[i];
+    const pieceText = fromSquareElement.textContent;
+
+    if (pieceText !== "" && playerPieceSymbols.includes(pieceText)) {
+      const pseudoLegalTargetSquares = getPseudoLegalMovesForPiece(fromSquareElement, playerColor);
+      for (const toSquareElement of pseudoLegalTargetSquares) {
+        if (isMoveLegal(fromSquareElement, toSquareElement, playerColor)) {
+          legalMoves.push({ from: fromSquareElement, to: toSquareElement });
+        }
+      }
+    }
+  }
+  return legalMoves;
+}
+
+/**
+ * Checks for checkmate or stalemate for the current player.
+ * Updates game status and gameState.gameOver accordingly.
+ */
+function checkForEndOfGame() {
+  if (gameState.gameOver) return;
+
+  const currentPlayerColor = turn === PLAYER.WHITE ? 'white' : 'black';
+  const opponentColor = turn === PLAYER.WHITE ? 'black' : 'white';
+
+  // Update the .checked status for the current player whose turn it is now
+  pieces[currentPlayerColor].checked = isKingInCheck(currentPlayerColor);
+  // Also ensure opponent's check status is cleared if they are not in check by this player
+  // (This might be redundant if analyzeCheck is comprehensive, but good for safety)
+  pieces[opponentColor].checked = isKingInCheck(opponentColor);
+
+
+  const legalMoves = getAllLegalMovesForPlayer(currentPlayerColor);
+
+  if (legalMoves.length === 0) {
+    if (pieces[currentPlayerColor].checked) {
+      gameStatus.textContent = `Checkmate! ${opponentColor.charAt(0).toUpperCase() + opponentColor.slice(1)} wins!`;
+      gameState.gameOver = true;
+    } else {
+      gameStatus.textContent = "Stalemate! It's a draw!";
+      gameState.gameOver = true;
+    }
+  } else if (pieces[currentPlayerColor].checked) {
+    // Game not over, but current player is in check.
+    // updateGameStatus will display this.
+  }
+  
+  // After checkForEndOfGame, updateGameStatus is called from the main move handlers
+  // which will then reflect the latest check/gameOver state.
 }
