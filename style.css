@@ -43,6 +43,21 @@ body {
   margin: 0 30px;
 }
 
+.chess-button {
+  padding: 8px 16px;
+  margin: 10px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.chess-button:hover {
+  background-color: #45a049;
+}
+
 .left-panel, .right-panel {
   width: 200px;
   margin: 0 20px;

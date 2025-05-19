@@ -668,49 +668,63 @@ function setupPromotionModal() {
   
   promotionPieces.forEach(piece => {
     piece.addEventListener('click', () => {
-      if (!pendingPromotion) return;
+      if (!pendingPromotion || !pendingPromotion.moveData) return; // Ensure moveData is present
       
       const pieceType = piece.getAttribute('data-piece');
-      const color = turn === PLAYER.WHITE ? 'black' : 'white'; // Because we've already switched turns
+      // Color of the player whose pawn is being promoted (turn has already switched)
+      const promotingPlayerColor = turn === PLAYER.WHITE ? 'black' : 'white'; 
       
-      // Update the piece on the board
-      const square = squares[pendingPromotion.row * 8 + pendingPromotion.col];
-      square.textContent = pieces[color][pieceType];
+      const squareToUpdate = squares[pendingPromotion.row * 8 + pendingPromotion.col];
+      squareToUpdate.textContent = pieces[promotingPlayerColor][pieceType];
       
-      // Update the move history
-      const lastMove = gameState.moveHistory[gameState.moveHistory.length - 1];
-      lastMove.promotion = pieceType;
+      // Update the moveData object that was passed
+      pendingPromotion.moveData.promotedToPieceType = pieceType;
+      pendingPromotion.moveData.pieceOnToSquareAfterMove = squareToUpdate.textContent;
       
-      // Hide the modal
+      // Now push the fully formed moveData to history
+      gameState.moveHistory.push(pendingPromotion.moveData);
+      
+      // Update the algebraic notation if it relied on the piece symbol
+      // For simplicity, algebraicNotation will use the piece from moveData.pieceOnToSquareAfterMove
+      // Or, it might need to look at promotedToPieceType for the '=' notation.
+      // The current algebraicNotation for promotion is just the new piece, which is fine.
+      // If we want "e8=Q", algebraicNotation needs more info from moveData.
+
       promotionModal.style.display = 'none';
-      pendingPromotion = null;
+      
+      // Refresh relevant UI that might depend on the completed move history item
+      updateMoveHistory(); 
+      // updateGameStatus(); // Potentially, if status depends on post-promotion check/checkmate
+      // checkForEndOfGame(); // Check for check/mate after promotion is complete
+
+
+      pendingPromotion = null; 
     });
   });
 }
 
 /**
  * Shows the pawn promotion modal
- * @param {string} color - The color of the pawn ('white' or 'black')
+ * @param {string} color - The color of the pawn ('white' or 'black') - this is the promoting pawn's color
  * @param {number} row - The row of the promotion square
  * @param {number} col - The column of the promotion square
+ * @param {Object} moveData - The move data object being built for history
  */
-function showPromotionModal(color, row, col) {
-  // Store the pending promotion
-  pendingPromotion = { row, col };
+function showPromotionModal(color, row, col, moveData) { 
+  // Store the pending promotion details, including the moveData to be completed
+  pendingPromotion = { row, col, moveData }; 
   
-  // Show the appropriate color pieces
   const whitePromotions = document.querySelectorAll('.white-promotion');
   const blackPromotions = document.querySelectorAll('.black-promotion');
   
   if (color === 'white') {
     whitePromotions.forEach(p => p.style.display = 'block');
     blackPromotions.forEach(p => p.style.display = 'none');
-  } else {
+  } else { // black
     whitePromotions.forEach(p => p.style.display = 'none');
     blackPromotions.forEach(p => p.style.display = 'block');
   }
   
-  // Show the modal
   promotionModal.style.display = 'flex';
 }
 
@@ -735,6 +749,14 @@ placePieces();
 updateGameStatus();
 setupPromotionModal();
 
+// Add event listener for the Undo button
+const undoButton = document.getElementById('undo-button');
+if (undoButton) {
+  undoButton.addEventListener('click', undoMove);
+} else {
+  console.error("Undo button not found. Make sure it exists in your HTML with id='undo-button'");
+}
+
 /**
  * Handles moving a selected white piece
  * @param {HTMLElement} square - The destination square
@@ -747,28 +769,59 @@ function handleWhitePieceMove(square, sqRow, sqCol) {
       square.classList.contains("movelight") ||
       square.classList.contains("takelight")
     ) {
-      // Store the original piece and position for history and en passant logic
-      const pieceText = selectedSquare.textContent;
+      const pieceText = selectedSquare.textContent; // Piece being moved
       const originalRow = parseInt(selectedSquare.dataset.row);
       const originalCol = parseInt(selectedSquare.dataset.col);
+      const originalContentOfTargetSquare = square.textContent; // Content of target square BEFORE move
 
-      // Handle castling moves
-      if (selectedSquare.textContent === pieces.white.king) {
-        const oldCol = parseInt(selectedSquare.dataset.col);
-        const newCol = parseInt(square.dataset.col);
+      // --- Initialize move data for history ---
+      const moveData = {
+        playerColor: 'white',
+        pieceMovedOriginal: pieceText, // e.g., white pawn
+        pieceOnToSquareAfterMove: null, // Will be set after potential promotion
+        from: { row: originalRow, col: originalCol },
+        to: { row: sqRow, col: sqCol },
         
-        // Kingside castling
-        if (oldCol === 4 && newCol === 6) {
-          squares[7 * 8 + 7].textContent = ""; // Remove rook from old position
-          squares[7 * 8 + 5].textContent = pieces.white.rook; // Place rook in new position
-        }
-        // Queenside castling
-        else if (oldCol === 4 && newCol === 2) {
-          squares[7 * 8 + 0].textContent = ""; // Remove rook from old position
-          squares[7 * 8 + 3].textContent = pieces.white.rook; // Place rook in new position
-        }
+        capturedPieceDirectly: null, // Piece captured on the 'to' square
+        wasEnPassantCapture: false,
+        enPassantVictimDetails: null, // { piece: 'pawn_symbol', row: R, col: C }
+        
+        wasPromotion: false,
+        promotedToPieceType: null, // e.g., 'queen', 'rook'. Set by promotion modal logic.
+        
+        wasCastling: false,
+        castlingDetails: null, // { side: 'kingside'/'queenside', rookFrom: {r,c}, rookTo: {r,c} }
 
-        // Update king position and castling rights
+        // Game state BEFORE this move
+        previousEnPassantTarget: gameState.enPassantTarget,
+        prevWhiteCanCastleKingside: gameState.whiteCanCastleKingside,
+        prevWhiteCanCastleQueenside: gameState.whiteCanCastleQueenside,
+        prevBlackCanCastleKingside: gameState.blackCanCastleKingside,
+        prevBlackCanCastleQueenside: gameState.blackCanCastleQueenside,
+        // wasGameOver: gameState.gameOver // To handle undoing a game-ending move
+      };
+
+      // --- Handle direct captures ---
+      if (originalContentOfTargetSquare !== "") {
+        moveData.capturedPieceDirectly = originalContentOfTargetSquare;
+        gameState.capturedPieces.white.push(originalContentOfTargetSquare);
+      }
+
+      // --- Handle Castling ---
+      if (pieceText === pieces.white.king) {
+        const oldKingCol = originalCol;
+        
+        if (oldKingCol === 4 && sqCol === 6) { // Kingside castling
+          squares[7 * 8 + 7].textContent = ""; // Remove rook
+          squares[7 * 8 + 5].textContent = pieces.white.rook; // Place rook
+          moveData.wasCastling = true;
+          moveData.castlingDetails = { side: 'kingside', rookOriginalSquare: {row: 7, col: 7}, rookNewSquare: {row: 7, col: 5}};
+        } else if (oldKingCol === 4 && sqCol === 2) { // Queenside castling
+          squares[7 * 8 + 0].textContent = ""; // Remove rook
+          squares[7 * 8 + 3].textContent = pieces.white.rook; // Place rook
+          moveData.wasCastling = true;
+          moveData.castlingDetails = { side: 'queenside', rookOriginalSquare: {row: 7, col: 0}, rookNewSquare: {row: 7, col: 3}};
+        }
         pieces.white.kingRow = sqRow;
         pieces.white.kingCol = sqCol;
         gameState.whiteCanCastleKingside = false;
@@ -776,72 +829,82 @@ function handleWhitePieceMove(square, sqRow, sqCol) {
         selectedSquare.classList.remove("dangerlight");
       }
 
-      // Update castling rights if rook moves
-      if (selectedSquare.textContent === pieces.white.rook) {
-        const oldCol = parseInt(selectedSquare.dataset.col);
-        if (oldCol === 0) gameState.whiteCanCastleQueenside = false;
-        if (oldCol === 7) gameState.whiteCanCastleKingside = false;
+      // --- Update castling rights if rook moves ---
+      if (pieceText === pieces.white.rook) {
+        if (originalRow === 7 && originalCol === 0) gameState.whiteCanCastleQueenside = false;
+        if (originalRow === 7 && originalCol === 7) gameState.whiteCanCastleKingside = false;
       }
 
-      // Store captured piece if any
-      if (square.textContent !== "") {
-        gameState.capturedPieces.white.push(square.textContent);
+      // --- Handle en passant capture ---
+      // Must check against previousEnPassantTarget, as gameState.enPassantTarget might be cleared too soon or be for next turn
+      if (pieceText === pieces.white.pawn &&
+          moveData.previousEnPassantTarget &&
+          sqRow === moveData.previousEnPassantTarget.row &&
+          sqCol === moveData.previousEnPassantTarget.col) {
+        const capturedPawnRow = sqRow + 1; // Black pawn captured by white pawn
+        const capturedPawnSquare = squares[capturedPawnRow * 8 + sqCol];
+        
+        moveData.wasEnPassantCapture = true;
+        moveData.enPassantVictimDetails = {
+            piece: capturedPawnSquare.textContent, // Should be black pawn
+            row: capturedPawnRow,
+            col: sqCol
+        };
+        gameState.capturedPieces.white.push(capturedPawnSquare.textContent);
+        capturedPawnSquare.textContent = "";
+        moveData.capturedPieceDirectly = null; // Ensure no double counting of captures
       }
 
-      // Handle en passant capture
-      if (selectedSquare.textContent === pieces.white.pawn &&
-          gameState.enPassantTarget &&
-          sqRow === gameState.enPassantTarget.row &&
-          sqCol === gameState.enPassantTarget.col) {
-        // Remove the captured pawn
-        const capturedPawn = squares[(sqRow + 1) * 8 + sqCol];
-        gameState.capturedPieces.white.push(capturedPawn.textContent);
-        capturedPawn.textContent = "";
-      }
-
-      // Move the piece
-      square.textContent = selectedSquare.textContent;
+      // --- Move the piece (visually) ---
+      square.textContent = pieceText; // Initially move the original piece (e.g. pawn)
       selectedSquare.textContent = "";
 
-      // Set en passant target if pawn moved two squares
+      // --- Set en passant target for the NEXT turn ---
       if (pieceText === pieces.white.pawn && originalRow === 6 && sqRow === 4) {
-        gameState.enPassantTarget = { row: 5, col: sqCol };
+        gameState.enPassantTarget = { row: 5, col: sqCol }; // Target for black
       } else {
-        // Clear en passant target after each move
-        gameState.enPassantTarget = null;
+        // Clear en passant target if the move wasn't a double pawn push
+        // (but only if current move didn't use an enPassantTarget from previous move)
+        if (!moveData.wasEnPassantCapture) { // Avoid clearing if this move was an en-passant
+             // Check if the move made was by the player who had en passant opportunity set against them
+            if(!(gameState.enPassantTarget && turn === PLAYER.BLACK)) {
+                 //gameState.enPassantTarget = null; // Clear if not a double push by current player
+            }
+            // More robust: enPassantTarget is always cleared unless set by a double pawn move.
+             gameState.enPassantTarget = (pieceText === pieces.white.pawn && originalRow === 6 && sqRow === 4) ? { row: 5, col: sqCol } : null;
+        }
       }
 
-      // Handle pawn promotion
-      if (square.textContent === pieces.white.pawn && sqRow === 0) {
-        // Show promotion modal instead of auto-promoting
-        showPromotionModal('white', sqRow, sqCol);
+
+      // --- Handle pawn promotion ---
+      if (pieceText === pieces.white.pawn && sqRow === 0) {
+        moveData.wasPromotion = true;
+        // The actual piece change and 'promotedToPieceType' happen in showPromotionModal/setupPromotionModal
+        // 'square.textContent' will be updated there.
+        // 'moveData.pieceOnToSquareAfterMove' will be effectively set by using square.textContent when history is pushed
+        showPromotionModal('white', sqRow, sqCol, moveData); // Pass moveData to be updated
+      } else {
+        // If not promotion, the piece on the square is the one that moved.
+        moveData.pieceOnToSquareAfterMove = square.textContent;
       }
+      
+      // If not a promotion, push to history here. If promotion, it's pushed/updated after modal.
+      if (!moveData.wasPromotion) {
+        gameState.moveHistory.push(moveData);
+      }
+
 
       turn = PLAYER.BLACK;
-
-      // Add move to history
-      gameState.moveHistory.push({
-        piece: square.textContent,
-        from: {
-          row: originalRow,
-          col: originalCol
-        },
-        to: {
-          row: sqRow,
-          col: sqCol
-        },
-        captured: gameState.capturedPieces.white[gameState.capturedPieces.white.length - 1] || null
-      });
+      gameState.moveCount = gameState.moveHistory.length; // Simpler way to count full moves if history stores half-moves
 
       // Update UI
       updateGameStatus();
       updateCapturedPieces();
-      updateMoveHistory();
+      updateMoveHistory(); // Will use the new detailed history
       checkForEndOfGame();
     }
   }
   
-  // Clean up
   cleanupAfterMove();
 }
 
@@ -1121,33 +1184,63 @@ function handleWhiteQueenSelect(square, sqRow, sqCol) {
  * @param {number} sqCol - The column of the destination square
  */
 function handleBlackPieceMove(square, sqRow, sqCol) {
-  if (square !== selectedSquare) {
-    if (
-      square.classList.contains("movelight") ||
-      square.classList.contains("takelight")
-    ) {
-      // Store the original piece and position for history and en passant logic
-      const pieceText = selectedSquare.textContent;
+    if (square !== selectedSquare) {
+      if (
+        square.classList.contains("movelight") ||
+        square.classList.contains("takelight")
+      ) {
+      const pieceText = selectedSquare.textContent; // Piece being moved
       const originalRow = parseInt(selectedSquare.dataset.row);
       const originalCol = parseInt(selectedSquare.dataset.col);
+      const originalContentOfTargetSquare = square.textContent; // Content of target square BEFORE move
 
-      // Handle castling moves
-      if (selectedSquare.textContent === pieces.black.king) {
-        const oldCol = parseInt(selectedSquare.dataset.col);
-        const newCol = parseInt(square.dataset.col);
+      // --- Initialize move data for history ---
+      const moveData = {
+        playerColor: 'black',
+        pieceMovedOriginal: pieceText,
+        pieceOnToSquareAfterMove: null,
+        from: { row: originalRow, col: originalCol },
+        to: { row: sqRow, col: sqCol },
+
+        capturedPieceDirectly: null,
+        wasEnPassantCapture: false,
+        enPassantVictimDetails: null,
         
-        // Kingside castling
-        if (oldCol === 4 && newCol === 6) {
-          squares[0 * 8 + 7].textContent = ""; // Remove rook from old position
-          squares[0 * 8 + 5].textContent = pieces.black.rook; // Place rook in new position
-        }
-        // Queenside castling
-        else if (oldCol === 4 && newCol === 2) {
-          squares[0 * 8 + 0].textContent = ""; // Remove rook from old position
-          squares[0 * 8 + 3].textContent = pieces.black.rook; // Place rook in new position
-        }
+        wasPromotion: false,
+        promotedToPieceType: null,
+        
+        wasCastling: false,
+        castlingDetails: null,
 
-        // Update king position and castling rights
+        previousEnPassantTarget: gameState.enPassantTarget,
+        prevWhiteCanCastleKingside: gameState.whiteCanCastleKingside,
+        prevWhiteCanCastleQueenside: gameState.whiteCanCastleQueenside,
+        prevBlackCanCastleKingside: gameState.blackCanCastleKingside,
+        prevBlackCanCastleQueenside: gameState.blackCanCastleQueenside,
+        // wasGameOver: gameState.gameOver
+      };
+
+      // --- Handle direct captures ---
+      if (originalContentOfTargetSquare !== "") {
+        moveData.capturedPieceDirectly = originalContentOfTargetSquare;
+        gameState.capturedPieces.black.push(originalContentOfTargetSquare);
+      }
+
+      // --- Handle Castling ---
+      if (pieceText === pieces.black.king) {
+        const oldKingCol = originalCol;
+
+        if (oldKingCol === 4 && sqCol === 6) { // Kingside
+          squares[0 * 8 + 7].textContent = ""; 
+          squares[0 * 8 + 5].textContent = pieces.black.rook;
+          moveData.wasCastling = true;
+          moveData.castlingDetails = { side: 'kingside', rookOriginalSquare: {row: 0, col: 7}, rookNewSquare: {row: 0, col: 5}};
+        } else if (oldKingCol === 4 && sqCol === 2) { // Queenside
+          squares[0 * 8 + 0].textContent = "";
+          squares[0 * 8 + 3].textContent = pieces.black.rook;
+          moveData.wasCastling = true;
+          moveData.castlingDetails = { side: 'queenside', rookOriginalSquare: {row: 0, col: 0}, rookNewSquare: {row: 0, col: 3}};
+        }
         pieces.black.kingRow = sqRow;
         pieces.black.kingCol = sqCol;
         gameState.blackCanCastleKingside = false;
@@ -1155,62 +1248,59 @@ function handleBlackPieceMove(square, sqRow, sqCol) {
         selectedSquare.classList.remove("dangerlight");
       }
 
-      // Update castling rights if rook moves
-      if (selectedSquare.textContent === pieces.black.rook) {
-        const oldCol = parseInt(selectedSquare.dataset.col);
-        if (oldCol === 0) gameState.blackCanCastleQueenside = false;
-        if (oldCol === 7) gameState.blackCanCastleKingside = false;
+      // --- Update castling rights if rook moves ---
+      if (pieceText === pieces.black.rook) {
+        if (originalRow === 0 && originalCol === 0) gameState.blackCanCastleQueenside = false;
+        if (originalRow === 0 && originalCol === 7) gameState.blackCanCastleKingside = false;
       }
 
-      // Store captured piece if any
-      if (square.textContent !== "") {
-        gameState.capturedPieces.black.push(square.textContent);
+      // --- Handle en passant capture ---
+      if (pieceText === pieces.black.pawn &&
+          moveData.previousEnPassantTarget &&
+          sqRow === moveData.previousEnPassantTarget.row &&
+          sqCol === moveData.previousEnPassantTarget.col) {
+        const capturedPawnRow = sqRow - 1; // White pawn captured by black pawn
+        const capturedPawnSquare = squares[capturedPawnRow * 8 + sqCol];
+        
+        moveData.wasEnPassantCapture = true;
+        moveData.enPassantVictimDetails = {
+            piece: capturedPawnSquare.textContent, // Should be white pawn
+            row: capturedPawnRow,
+            col: sqCol
+        };
+        gameState.capturedPieces.black.push(capturedPawnSquare.textContent);
+        capturedPawnSquare.textContent = "";
+        moveData.capturedPieceDirectly = null;
       }
 
-      // Handle en passant capture
-      if (selectedSquare.textContent === pieces.black.pawn &&
-          gameState.enPassantTarget &&
-          sqRow === gameState.enPassantTarget.row &&
-          sqCol === gameState.enPassantTarget.col) {
-        // Remove the captured pawn
-        const capturedPawn = squares[(sqRow - 1) * 8 + sqCol];
-        gameState.capturedPieces.black.push(capturedPawn.textContent);
-        capturedPawn.textContent = "";
-      }
-
-      // Move the piece
-      square.textContent = selectedSquare.textContent;
+      // --- Move the piece (visually) ---
+      square.textContent = pieceText;
       selectedSquare.textContent = "";
 
-      // Set en passant target if pawn moved two squares
+      // --- Set en passant target for the NEXT turn ---
       if (pieceText === pieces.black.pawn && originalRow === 1 && sqRow === 3) {
-        gameState.enPassantTarget = { row: 2, col: sqCol };
+        gameState.enPassantTarget = { row: 2, col: sqCol }; // Target for white
       } else {
-        // Clear en passant target after each move
-        gameState.enPassantTarget = null;
+         if (!moveData.wasEnPassantCapture) {
+            // gameState.enPassantTarget = null;
+            gameState.enPassantTarget = (pieceText === pieces.black.pawn && originalRow === 1 && sqRow === 3) ? { row: 2, col: sqCol } : null;
+        }
       }
 
-      // Handle pawn promotion
-      if (square.textContent === pieces.black.pawn && sqRow === 7) {
-        // Show promotion modal instead of auto-promoting
-        showPromotionModal('black', sqRow, sqCol);
+      // --- Handle pawn promotion ---
+      if (pieceText === pieces.black.pawn && sqRow === 7) {
+        moveData.wasPromotion = true;
+        showPromotionModal('black', sqRow, sqCol, moveData); // Pass moveData
+      } else {
+        moveData.pieceOnToSquareAfterMove = square.textContent;
       }
 
+      if (!moveData.wasPromotion) {
+        gameState.moveHistory.push(moveData);
+      }
+      
       turn = PLAYER.WHITE;
-
-      // Add move to history
-      gameState.moveHistory.push({
-        piece: square.textContent,
-        from: {
-          row: originalRow,
-          col: originalCol
-        },
-        to: {
-          row: sqRow,
-          col: sqCol
-        },
-        captured: gameState.capturedPieces.black[gameState.capturedPieces.black.length - 1] || null
-      });
+      gameState.moveCount = gameState.moveHistory.length;
 
       // Update UI
       updateGameStatus();
@@ -1220,7 +1310,6 @@ function handleBlackPieceMove(square, sqRow, sqCol) {
     }
   }
   
-  // Clean up
   cleanupAfterMove();
 }
 
@@ -1854,4 +1943,127 @@ function checkForEndOfGame() {
   
   // After checkForEndOfGame, updateGameStatus is called from the main move handlers
   // which will then reflect the latest check/gameOver state.
+}
+
+// ===========================
+// Undo Move Functionality
+// ===========================
+
+/**
+ * Undoes the last move made in the game.
+ */
+function undoMove() {
+  if (gameState.moveHistory.length === 0) {
+    console.log("No moves to undo.");
+    return;
+  }
+
+  const lastMoveData = gameState.moveHistory.pop();
+  if (!lastMoveData) return;
+
+  const playerColor = lastMoveData.playerColor; // The player whose move is being undone
+  const opponentColor = playerColor === 'white' ? 'black' : 'white';
+
+  const fromSquare = squares[lastMoveData.from.row * 8 + lastMoveData.from.col];
+  const toSquare = squares[lastMoveData.to.row * 8 + lastMoveData.to.col];
+
+  // 1. Revert piece positions (main piece)
+  fromSquare.textContent = lastMoveData.pieceMovedOriginal; 
+  toSquare.textContent = lastMoveData.capturedPieceDirectly || ""; // Restore captured piece or empty
+
+  // 2. Restore captured pieces array & en-passant victim
+  if (lastMoveData.capturedPieceDirectly) {
+    const capturedArray = playerColor === 'white' ? gameState.capturedPieces.white : gameState.capturedPieces.black;
+    const pieceIndex = capturedArray.lastIndexOf(lastMoveData.capturedPieceDirectly);
+    if (pieceIndex > -1) {
+      capturedArray.splice(pieceIndex, 1);
+    }
+  }
+  if (lastMoveData.wasEnPassantCapture && lastMoveData.enPassantVictimDetails) {
+    const victimDetails = lastMoveData.enPassantVictimDetails;
+    squares[victimDetails.row * 8 + victimDetails.col].textContent = victimDetails.piece;
+    const capturedArray = playerColor === 'white' ? gameState.capturedPieces.white : gameState.capturedPieces.black;
+    const pieceIndex = capturedArray.lastIndexOf(victimDetails.piece);
+    if (pieceIndex > -1) {
+      capturedArray.splice(pieceIndex, 1);
+    }
+  }
+
+  // 3. Undo Special Moves
+  // Undo Castling
+  if (lastMoveData.wasCastling && lastMoveData.castlingDetails) {
+    const details = lastMoveData.castlingDetails;
+    // King is already back at fromSquare (e.g., E1)
+    // Move rook back to its original square (e.g., H1) from its castled square (e.g., F1)
+    squares[details.rookOriginalSquare.row * 8 + details.rookOriginalSquare.col].textContent = 
+        playerColor === 'white' ? pieces.white.rook : pieces.black.rook;
+    squares[details.rookNewSquare.row * 8 + details.rookNewSquare.col].textContent = "";
+  }
+
+  // Undo Promotion (pawn is already back on fromSquare due to step 1)
+  // The piece on the 'toSquare' (promotion square) is now whatever was captured or empty.
+  // If it was a promotion, fromSquare now has the original pawn.
+  // toSquare (the promotion square) was set in step 1.
+  // If the promotion involved a capture, capturedPieceDirectly handles that.
+  // If not, toSquare is empty. This seems correct as the pawn is now back on its pre-promotion square.
+
+  // 4. Restore King's logical position if it moved
+  if (lastMoveData.pieceMovedOriginal === pieces.white.king) {
+    pieces.white.kingRow = lastMoveData.from.row;
+    pieces.white.kingCol = lastMoveData.from.col;
+  } else if (lastMoveData.pieceMovedOriginal === pieces.black.king) {
+    pieces.black.kingRow = lastMoveData.from.row;
+    pieces.black.kingCol = lastMoveData.from.col;
+  }
+  // If king didn't move, its logical position remains as it was before this undone move.
+
+  // 5. Restore Game State Variables
+  gameState.enPassantTarget = lastMoveData.previousEnPassantTarget;
+  gameState.whiteCanCastleKingside = lastMoveData.prevWhiteCanCastleKingside;
+  gameState.whiteCanCastleQueenside = lastMoveData.prevWhiteCanCastleQueenside;
+  gameState.blackCanCastleKingside = lastMoveData.prevBlackCanCastleKingside;
+  gameState.blackCanCastleQueenside = lastMoveData.prevBlackCanCastleQueenside;
+  
+  if (gameState.gameOver) {
+      gameState.gameOver = false; // Game is no longer over after undo
+  }
+
+  // 6. Switch Turn back to the player who made the undone move
+  turn = (playerColor === 'white') ? PLAYER.WHITE : PLAYER.BLACK;
+  gameState.moveCount = gameState.moveHistory.length;
+
+  // 7. Update UI and game state evaluation
+  cleanupAfterMove(); // Clears highlights, movelights, takelights. Also handles dangerlight via check status. 
+                      // This needs to be called *after* turn is switched and board is set.
+  
+  // Re-evaluate check status for both players AFTER board state and turn are restored
+  pieces.white.checked = isKingInCheck('white');
+  pieces.black.checked = isKingInCheck('black');
+  
+  // If kings are in check, re-add dangerlight; if not, cleanupAfterMove might have removed it or it wasn't there.
+  // It's safer to explicitly manage dangerlight here based on new check status.
+  const whiteKingSquare = squares[pieces.white.kingRow * 8 + pieces.white.kingCol];
+  const blackKingSquare = squares[pieces.black.kingRow * 8 + pieces.black.kingCol];
+  
+  whiteKingSquare.classList.remove("dangerlight");
+  blackKingSquare.classList.remove("dangerlight");
+
+  if (pieces.white.checked) {
+    whiteKingSquare.classList.add("dangerlight");
+  }
+  if (pieces.black.checked) {
+    blackKingSquare.classList.add("dangerlight");
+  }
+
+  updateCapturedPieces();
+  updateMoveHistory();
+  updateGameStatus(); // This should reflect the current player's turn and check status
+  // No need to call checkForEndOfGame() here, as we are undoing a state, not checking for new end.
+  // The game status will naturally update.
+
+  // Deselect any selected square
+  if (selectedSquare) {
+    selectedSquare.classList.remove("highlight");
+    selectedSquare = null;
+  }
 }
