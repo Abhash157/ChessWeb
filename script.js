@@ -816,6 +816,7 @@ function moveBlack(square) {
     for (let i = 0; i < 64; i++) {
       squares[i].classList.remove("movelight");
       squares[i].classList.remove("takelight");
+      if (!pieces.black.checked) squares[i].classList.remove("dangerlight");
     }
     selectedSquare = null;
   } else if (whitePieces.indexOf(square.textContent) != -1) {
@@ -931,6 +932,7 @@ function moveBlack(square) {
       for (let i = sqRow - 1; i >= 0; i--) {
         if (whitePieces.indexOf(squares[i * 8 + sqCol].textContent) != -1) {
           squares[i * 8 + sqCol].classList.add("takelight");
+          break;
         }
         if (squares[i * 8 + sqCol].textContent != "") {
           break;
@@ -940,6 +942,7 @@ function moveBlack(square) {
       for (let i = sqRow + 1; i <= 7; i++) {
         if (whitePieces.indexOf(squares[i * 8 + sqCol].textContent) != -1) {
           squares[i * 8 + sqCol].classList.add("takelight");
+          break;
         }
         if (squares[i * 8 + sqCol].textContent != "") {
           break;
@@ -951,6 +954,7 @@ function moveBlack(square) {
       for (let i = sqCol + 1; i <= 7; i++) {
         if (whitePieces.indexOf(squares[sqRow * 8 + i].textContent) != -1) {
           squares[sqRow * 8 + i].classList.add("takelight");
+          break;
         }
         if (squares[sqRow * 8 + i].textContent != "") {
           break;
@@ -960,6 +964,7 @@ function moveBlack(square) {
       for (let i = sqCol - 1; i >= 0; i--) {
         if (whitePieces.indexOf(squares[sqRow * 8 + i].textContent) != -1) {
           squares[sqRow * 8 + i].classList.add("takelight");
+          break;
         }
         if (squares[sqRow * 8 + i].textContent != "") {
           break;
@@ -981,14 +986,14 @@ function moveBlack(square) {
             row * 8 + col < 0 ||
             col >= 8 ||
             col <= -1 ||
-            whitePieces.indexOf(squares[row * 8 + col].textContent) != -1
+            blackPieces.indexOf(squares[row * 8 + col].textContent) != -1
           ) {
             return;
           }
           let squareBox = squares[row * 8 + col];
           squares[row * 8 + col].classList.add("movelight");
           squareBox.classList.add("movelight");
-          if (blackPieces.indexOf(squareBox.textContent) != -1) {
+          if (whitePieces.indexOf(squareBox.textContent) != -1) {
             squareBox.classList.add("takelight");
           }
         });
@@ -1000,13 +1005,13 @@ function moveBlack(square) {
             row * 8 + col < 0 ||
             col >= 8 ||
             col <= -1 ||
-            whitePieces.indexOf(squares[row * 8 + col].textContent) != -1
+            blackPieces.indexOf(squares[row * 8 + col].textContent) != -1
           ) {
             return;
           }
           let squareBox = squares[row * 8 + col];
           squareBox.classList.add("movelight");
-          if (blackPieces.indexOf(squareBox.textContent) != -1) {
+          if (whitePieces.indexOf(squareBox.textContent) != -1) {
             squareBox.classList.add("takelight");
           }
         });
@@ -1020,11 +1025,11 @@ function moveBlack(square) {
         bCol = sqCol - i - 1;
 
         if (bRow >= 0 && bCol >= 0) {
-          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             break;
           }
           squares[bRow * 8 + bCol].classList.add("movelight");
-          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             squares[bRow * 8 + bCol].classList.add("takelight");
             break;
           }
@@ -1034,11 +1039,11 @@ function moveBlack(square) {
         bRow = sqRow - i - 1;
         bCol = sqCol + i + 1;
         if (bRow >= 0 && bCol <= 7) {
-          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             break;
           }
           squares[bRow * 8 + bCol].classList.add("movelight");
-          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             squares[bRow * 8 + bCol].classList.add("takelight");
             break;
           }
@@ -1049,11 +1054,11 @@ function moveBlack(square) {
         bRow = sqRow + i + 1;
         bCol = sqCol - i - 1;
         if (bRow <= 7 && bCol >= 0) {
-          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             break;
           }
           squares[bRow * 8 + bCol].classList.add("movelight");
-          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             squares[bRow * 8 + bCol].classList.add("takelight");
             break;
           }
@@ -1063,11 +1068,11 @@ function moveBlack(square) {
         bRow = sqRow + i + 1;
         bCol = sqCol + i + 1;
         if (bRow <= 7 && bCol <= 7) {
-          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             break;
           }
           squares[bRow * 8 + bCol].classList.add("movelight");
-          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             squares[bRow * 8 + bCol].classList.add("takelight");
             break;
           }
@@ -1079,6 +1084,7 @@ function moveBlack(square) {
       for (let i = sqRow - 1; i >= 0; i--) {
         if (whitePieces.indexOf(squares[i * 8 + sqCol].textContent) != -1) {
           squares[i * 8 + sqCol].classList.add("takelight");
+          break;
         }
         if (squares[i * 8 + sqCol].textContent != "") {
           break;
@@ -1088,6 +1094,7 @@ function moveBlack(square) {
       for (let i = sqRow + 1; i <= 7; i++) {
         if (whitePieces.indexOf(squares[i * 8 + sqCol].textContent) != -1) {
           squares[i * 8 + sqCol].classList.add("takelight");
+          break;
         }
         if (squares[i * 8 + sqCol].textContent != "") {
           break;
@@ -1099,6 +1106,7 @@ function moveBlack(square) {
       for (let i = sqCol + 1; i <= 7; i++) {
         if (whitePieces.indexOf(squares[sqRow * 8 + i].textContent) != -1) {
           squares[sqRow * 8 + i].classList.add("takelight");
+          break;
         }
         if (squares[sqRow * 8 + i].textContent != "") {
           break;
@@ -1108,6 +1116,7 @@ function moveBlack(square) {
       for (let i = sqCol - 1; i >= 0; i--) {
         if (whitePieces.indexOf(squares[sqRow * 8 + i].textContent) != -1) {
           squares[sqRow * 8 + i].classList.add("takelight");
+          break;
         }
         if (squares[sqRow * 8 + i].textContent != "") {
           break;
@@ -1121,11 +1130,11 @@ function moveBlack(square) {
         bCol = sqCol - i - 1;
 
         if (bRow >= 0 && bCol >= 0) {
-          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             break;
           }
           squares[bRow * 8 + bCol].classList.add("movelight");
-          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             squares[bRow * 8 + bCol].classList.add("takelight");
             break;
           }
@@ -1135,11 +1144,11 @@ function moveBlack(square) {
         bRow = sqRow - i - 1;
         bCol = sqCol + i + 1;
         if (bRow >= 0 && bCol <= 7) {
-          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             break;
           }
           squares[bRow * 8 + bCol].classList.add("movelight");
-          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             squares[bRow * 8 + bCol].classList.add("takelight");
             break;
           }
@@ -1150,11 +1159,11 @@ function moveBlack(square) {
         bRow = sqRow + i + 1;
         bCol = sqCol - i - 1;
         if (bRow <= 7 && bCol >= 0) {
-          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             break;
           }
           squares[bRow * 8 + bCol].classList.add("movelight");
-          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             squares[bRow * 8 + bCol].classList.add("takelight");
             break;
           }
@@ -1164,11 +1173,11 @@ function moveBlack(square) {
         bRow = sqRow + i + 1;
         bCol = sqCol + i + 1;
         if (bRow <= 7 && bCol <= 7) {
-          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             break;
           }
           squares[bRow * 8 + bCol].classList.add("movelight");
-          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             squares[bRow * 8 + bCol].classList.add("takelight");
             break;
           }
