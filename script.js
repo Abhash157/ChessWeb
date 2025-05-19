@@ -6,6 +6,21 @@ let whiteTurn = 1;
 let blackTurn = 0;
 let invalidOpacity = 0;
 
+// Game state variables
+let gameState = {
+    whiteCanCastleKingside: true,
+    whiteCanCastleQueenside: true,
+    blackCanCastleKingside: true,
+    blackCanCastleQueenside: true,
+    enPassantTarget: null,
+    lastPawnDoubleMove: null,
+    moveHistory: [],
+    capturedPieces: {
+        white: [],
+        black: []
+    }
+};
+
 // Chess pieces Unicode symbols
 const pieces = {
   white: {
@@ -245,16 +260,80 @@ function moveWhite(square) {
         square.classList.contains("movelight") ||
         square.classList.contains("takelight")
       ) {
-        if (selectedSquare.textContent == pieces.white.king) {
+        // Handle castling moves
+        if (selectedSquare.textContent === pieces.white.king) {
+          const oldCol = parseInt(selectedSquare.dataset.col);
+          const newCol = parseInt(square.dataset.col);
+          
+          // Kingside castling
+          if (oldCol === 4 && newCol === 6) {
+            squares[7 * 8 + 7].textContent = ""; // Remove rook from old position
+            squares[7 * 8 + 5].textContent = pieces.white.rook; // Place rook in new position
+          }
+          // Queenside castling
+          else if (oldCol === 4 && newCol === 2) {
+            squares[7 * 8 + 0].textContent = ""; // Remove rook from old position
+            squares[7 * 8 + 3].textContent = pieces.white.rook; // Place rook in new position
+          }
+
+          // Update king position and castling rights
           pieces.white.kingRow = sqRow;
           pieces.white.kingCol = sqCol;
+          gameState.whiteCanCastleKingside = false;
+          gameState.whiteCanCastleQueenside = false;
           selectedSquare.classList.remove("dangerlight");
+        }
+
+        // Update castling rights if rook moves
+        if (selectedSquare.textContent === pieces.white.rook) {
+          const oldCol = parseInt(selectedSquare.dataset.col);
+          if (oldCol === 0) gameState.whiteCanCastleQueenside = false;
+          if (oldCol === 7) gameState.whiteCanCastleKingside = false;
+        }
+
+        // Store captured piece if any
+        if (square.textContent !== "") {
+          gameState.capturedPieces.white.push(square.textContent);
+        }
+
+        // Handle en passant capture
+        if (selectedSquare.textContent === pieces.white.pawn &&
+            gameState.enPassantTarget &&
+            sqRow === gameState.enPassantTarget.row &&
+            sqCol === gameState.enPassantTarget.col) {
+          // Remove the captured pawn
+          const capturedPawn = squares[(sqRow + 1) * 8 + sqCol];
+          gameState.capturedPieces.white.push(capturedPawn.textContent);
+          capturedPawn.textContent = "";
         }
 
         square.textContent = selectedSquare.textContent;
         selectedSquare.textContent = "";
 
+        // Clear en passant target after each move
+        gameState.enPassantTarget = null;
+
+        // Handle pawn promotion
+        if (square.textContent === pieces.white.pawn && sqRow === 0) {
+          // Automatically promote to queen for now
+          square.textContent = pieces.white.queen;
+        }
+
         turn = whiteTurn;
+
+        // Add move to history
+        gameState.moveHistory.push({
+          piece: square.textContent,
+          from: {
+            row: parseInt(selectedSquare.dataset.row),
+            col: parseInt(selectedSquare.dataset.col)
+          },
+          to: {
+            row: sqRow,
+            col: sqCol
+          },
+          captured: gameState.capturedPieces.white[gameState.capturedPieces.white.length - 1] || null
+        });
       }
     }
     selectedSquare.classList.remove("highlight");
@@ -281,13 +360,39 @@ function moveWhite(square) {
           moveCell < 0 ||
           (sqCol % 8 == 0 && j == 0) ||
           (sqCol % 8 == 7 && j == 2)
-          // squares[moveCell].classList.indexOf("dangerSquare") != 1
         ) {
           continue; //King Corner overflow controlled
         }
-
         if (whitePieces.indexOf(squares[moveCell].textContent) == -1) {
           squares[moveCell].classList.add("movelight");
+        }
+      }
+    }
+
+    // Add castling moves
+    if (gameState.whiteCanCastleKingside && !pieces.white.checked) {
+      // Check if squares between king and rook are empty
+      if (squares[7 * 8 + 5].textContent === "" && 
+          squares[7 * 8 + 6].textContent === "" &&
+          squares[7 * 8 + 7].textContent === pieces.white.rook) {
+        // Check if squares are not under attack
+        if (!isSquareUnderAttack(7, 5, "white") && 
+            !isSquareUnderAttack(7, 6, "white")) {
+          squares[7 * 8 + 6].classList.add("movelight");
+        }
+      }
+    }
+    
+    if (gameState.whiteCanCastleQueenside && !pieces.white.checked) {
+      // Check if squares between king and rook are empty
+      if (squares[7 * 8 + 3].textContent === "" && 
+          squares[7 * 8 + 2].textContent === "" &&
+          squares[7 * 8 + 1].textContent === "" &&
+          squares[7 * 8 + 0].textContent === pieces.white.rook) {
+        // Check if squares are not under attack
+        if (!isSquareUnderAttack(7, 3, "white") && 
+            !isSquareUnderAttack(7, 2, "white")) {
+          squares[7 * 8 + 2].classList.add("movelight");
         }
       }
     }
@@ -301,7 +406,14 @@ function moveWhite(square) {
       // Show pawn moves
       // 2 moves in first move
       if (sqRow == 6) {
-        squares[(sqRow - 2) * 8 + sqCol].classList.add("movelight");
+        if (squares[(sqRow - 1) * 8 + sqCol].textContent === "") {
+          squares[(sqRow - 2) * 8 + sqCol].classList.add("movelight");
+          // Set this pawn as potential en passant target
+          gameState.lastPawnDoubleMove = {
+            row: sqRow - 2,
+            col: sqCol
+          };
+        }
       }
       // pawn normal move
       if (squares[(sqRow - 1) * 8 + sqCol].innerText == "") {
@@ -321,6 +433,23 @@ function moveWhite(square) {
         sqCol != 7 //bug fix on right end of board
       ) {
         squares[(sqRow - 1) * 8 + (sqCol + 1)].classList.add("takelight");
+      }
+
+      // En passant capture
+      if (sqRow === 3) { // White pawns can only en passant capture on rank 5 (row 3)
+        if (gameState.lastPawnDoubleMove) {
+          const lastMove = gameState.lastPawnDoubleMove;
+          if (lastMove.row === 3) { // Check if the last move was to rank 5
+            // Check if the last moved pawn is adjacent
+            if (Math.abs(lastMove.col - sqCol) === 1) {
+              squares[2 * 8 + lastMove.col].classList.add("takelight");
+              gameState.enPassantTarget = {
+                row: 2,
+                col: lastMove.col
+              };
+            }
+          }
+        }
       }
     } else if (square.textContent == pieces.white.rook) {
       selectedSquare = square;
@@ -607,15 +736,80 @@ function moveBlack(square) {
         square.classList.contains("movelight") ||
         square.classList.contains("takelight")
       ) {
-        if (selectedSquare.textContent == pieces.black.king) {
+        // Handle castling moves
+        if (selectedSquare.textContent === pieces.black.king) {
+          const oldCol = parseInt(selectedSquare.dataset.col);
+          const newCol = parseInt(square.dataset.col);
+          
+          // Kingside castling
+          if (oldCol === 4 && newCol === 6) {
+            squares[0 * 8 + 7].textContent = ""; // Remove rook from old position
+            squares[0 * 8 + 5].textContent = pieces.black.rook; // Place rook in new position
+          }
+          // Queenside castling
+          else if (oldCol === 4 && newCol === 2) {
+            squares[0 * 8 + 0].textContent = ""; // Remove rook from old position
+            squares[0 * 8 + 3].textContent = pieces.black.rook; // Place rook in new position
+          }
+
+          // Update king position and castling rights
           pieces.black.kingRow = sqRow;
           pieces.black.kingCol = sqCol;
+          gameState.blackCanCastleKingside = false;
+          gameState.blackCanCastleQueenside = false;
           selectedSquare.classList.remove("dangerlight");
+        }
+
+        // Update castling rights if rook moves
+        if (selectedSquare.textContent === pieces.black.rook) {
+          const oldCol = parseInt(selectedSquare.dataset.col);
+          if (oldCol === 0) gameState.blackCanCastleQueenside = false;
+          if (oldCol === 7) gameState.blackCanCastleKingside = false;
+        }
+
+        // Store captured piece if any
+        if (square.textContent !== "") {
+          gameState.capturedPieces.black.push(square.textContent);
+        }
+
+        // Handle en passant capture
+        if (selectedSquare.textContent === pieces.black.pawn &&
+            gameState.enPassantTarget &&
+            sqRow === gameState.enPassantTarget.row &&
+            sqCol === gameState.enPassantTarget.col) {
+          // Remove the captured pawn
+          const capturedPawn = squares[(sqRow - 1) * 8 + sqCol];
+          gameState.capturedPieces.black.push(capturedPawn.textContent);
+          capturedPawn.textContent = "";
         }
 
         square.textContent = selectedSquare.textContent;
         selectedSquare.textContent = "";
+
+        // Clear en passant target after each move
+        gameState.enPassantTarget = null;
+
+        // Handle pawn promotion
+        if (square.textContent === pieces.black.pawn && sqRow === 7) {
+          // Automatically promote to queen for now
+          square.textContent = pieces.black.queen;
+        }
+
         turn = blackTurn;
+
+        // Add move to history
+        gameState.moveHistory.push({
+          piece: square.textContent,
+          from: {
+            row: parseInt(selectedSquare.dataset.row),
+            col: parseInt(selectedSquare.dataset.col)
+          },
+          to: {
+            row: sqRow,
+            col: sqCol
+          },
+          captured: gameState.capturedPieces.black[gameState.capturedPieces.black.length - 1] || null
+        });
       }
     }
     selectedSquare.classList.remove("highlight");
@@ -648,6 +842,34 @@ function moveBlack(square) {
         }
       }
     }
+
+    // Add castling moves for black
+    if (gameState.blackCanCastleKingside && !pieces.black.checked) {
+      // Check if squares between king and rook are empty
+      if (squares[0 * 8 + 5].textContent === "" && 
+          squares[0 * 8 + 6].textContent === "" &&
+          squares[0 * 8 + 7].textContent === pieces.black.rook) {
+        // Check if squares are not under attack
+        if (!isSquareUnderAttack(0, 5, "black") && 
+            !isSquareUnderAttack(0, 6, "black")) {
+          squares[0 * 8 + 6].classList.add("movelight");
+        }
+      }
+    }
+    
+    if (gameState.blackCanCastleQueenside && !pieces.black.checked) {
+      // Check if squares between king and rook are empty
+      if (squares[0 * 8 + 3].textContent === "" && 
+          squares[0 * 8 + 2].textContent === "" &&
+          squares[0 * 8 + 1].textContent === "" &&
+          squares[0 * 8 + 0].textContent === pieces.black.rook) {
+        // Check if squares are not under attack
+        if (!isSquareUnderAttack(0, 3, "black") && 
+            !isSquareUnderAttack(0, 2, "black")) {
+          squares[0 * 8 + 2].classList.add("movelight");
+        }
+      }
+    }
   } else if (pieces.black.checked == false) {
     if (square.textContent == pieces.black.pawn) {
       //Move for black pawn
@@ -658,7 +880,14 @@ function moveBlack(square) {
       // Show pawn moves
       // 2 moves in first move
       if (sqRow == 1) {
-        squares[(sqRow + 2) * 8 + sqCol].classList.add("movelight");
+        if (squares[(sqRow + 1) * 8 + sqCol].textContent === "") {
+          squares[(sqRow + 2) * 8 + sqCol].classList.add("movelight");
+          // Set this pawn as potential en passant target
+          gameState.lastPawnDoubleMove = {
+            row: sqRow + 2,
+            col: sqCol
+          };
+        }
       }
       // pawn normal move
       if (squares[(sqRow + 1) * 8 + sqCol].innerText == "") {
@@ -678,6 +907,23 @@ function moveBlack(square) {
         sqCol != 7 //bug fix on right end of board
       ) {
         squares[(sqRow + 1) * 8 + (sqCol + 1)].classList.add("takelight");
+      }
+
+      // En passant capture
+      if (sqRow === 4) { // Black pawns can only en passant capture on rank 4
+        if (gameState.lastPawnDoubleMove) {
+          const lastMove = gameState.lastPawnDoubleMove;
+          if (lastMove.row === 4) { // Check if the last move was to rank 4
+            // Check if the last moved pawn is adjacent
+            if (Math.abs(lastMove.col - sqCol) === 1) {
+              squares[5 * 8 + lastMove.col].classList.add("takelight");
+              gameState.enPassantTarget = {
+                row: 5,
+                col: lastMove.col
+              };
+            }
+          }
+        }
       }
     } else if (square.textContent == pieces.black.rook) {
       selectedSquare = square;
@@ -735,14 +981,14 @@ function moveBlack(square) {
             row * 8 + col < 0 ||
             col >= 8 ||
             col <= -1 ||
-            blackPieces.indexOf(squares[row * 8 + col].textContent) != -1
+            whitePieces.indexOf(squares[row * 8 + col].textContent) != -1
           ) {
             return;
           }
           let squareBox = squares[row * 8 + col];
           squares[row * 8 + col].classList.add("movelight");
           squareBox.classList.add("movelight");
-          if (whitePieces.indexOf(squareBox.textContent) != -1) {
+          if (blackPieces.indexOf(squareBox.textContent) != -1) {
             squareBox.classList.add("takelight");
           }
         });
@@ -754,13 +1000,13 @@ function moveBlack(square) {
             row * 8 + col < 0 ||
             col >= 8 ||
             col <= -1 ||
-            blackPieces.indexOf(squares[row * 8 + col].textContent) != -1
+            whitePieces.indexOf(squares[row * 8 + col].textContent) != -1
           ) {
             return;
           }
           let squareBox = squares[row * 8 + col];
           squareBox.classList.add("movelight");
-          if (whitePieces.indexOf(squareBox.textContent) != -1) {
+          if (blackPieces.indexOf(squareBox.textContent) != -1) {
             squareBox.classList.add("takelight");
           }
         });
@@ -774,11 +1020,11 @@ function moveBlack(square) {
         bCol = sqCol - i - 1;
 
         if (bRow >= 0 && bCol >= 0) {
-          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             break;
           }
           squares[bRow * 8 + bCol].classList.add("movelight");
-          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             squares[bRow * 8 + bCol].classList.add("takelight");
             break;
           }
@@ -788,11 +1034,11 @@ function moveBlack(square) {
         bRow = sqRow - i - 1;
         bCol = sqCol + i + 1;
         if (bRow >= 0 && bCol <= 7) {
-          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             break;
           }
           squares[bRow * 8 + bCol].classList.add("movelight");
-          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             squares[bRow * 8 + bCol].classList.add("takelight");
             break;
           }
@@ -803,11 +1049,11 @@ function moveBlack(square) {
         bRow = sqRow + i + 1;
         bCol = sqCol - i - 1;
         if (bRow <= 7 && bCol >= 0) {
-          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             break;
           }
           squares[bRow * 8 + bCol].classList.add("movelight");
-          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             squares[bRow * 8 + bCol].classList.add("takelight");
             break;
           }
@@ -817,11 +1063,11 @@ function moveBlack(square) {
         bRow = sqRow + i + 1;
         bCol = sqCol + i + 1;
         if (bRow <= 7 && bCol <= 7) {
-          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             break;
           }
           squares[bRow * 8 + bCol].classList.add("movelight");
-          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             squares[bRow * 8 + bCol].classList.add("takelight");
             break;
           }
@@ -875,11 +1121,11 @@ function moveBlack(square) {
         bCol = sqCol - i - 1;
 
         if (bRow >= 0 && bCol >= 0) {
-          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             break;
           }
           squares[bRow * 8 + bCol].classList.add("movelight");
-          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             squares[bRow * 8 + bCol].classList.add("takelight");
             break;
           }
@@ -889,11 +1135,11 @@ function moveBlack(square) {
         bRow = sqRow - i - 1;
         bCol = sqCol + i + 1;
         if (bRow >= 0 && bCol <= 7) {
-          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             break;
           }
           squares[bRow * 8 + bCol].classList.add("movelight");
-          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             squares[bRow * 8 + bCol].classList.add("takelight");
             break;
           }
@@ -904,11 +1150,11 @@ function moveBlack(square) {
         bRow = sqRow + i + 1;
         bCol = sqCol - i - 1;
         if (bRow <= 7 && bCol >= 0) {
-          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             break;
           }
           squares[bRow * 8 + bCol].classList.add("movelight");
-          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             squares[bRow * 8 + bCol].classList.add("takelight");
             break;
           }
@@ -918,11 +1164,11 @@ function moveBlack(square) {
         bRow = sqRow + i + 1;
         bCol = sqCol + i + 1;
         if (bRow <= 7 && bCol <= 7) {
-          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             break;
           }
           squares[bRow * 8 + bCol].classList.add("movelight");
-          if (whitePieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
+          if (blackPieces.indexOf(squares[bRow * 8 + bCol].textContent) != -1) {
             squares[bRow * 8 + bCol].classList.add("takelight");
             break;
           }
@@ -941,3 +1187,76 @@ function debug(content) {
   debugBox.innerHTML = content;
 }
 // debug();
+
+function isSquareUnderAttack(row, col, color) {
+    const opponentColor = color === "white" ? "black" : "white";
+    const opponentPieces = color === "white" ? blackPieces : whitePieces;
+    
+    // Check for pawn attacks
+    const pawnDirection = color === "white" ? -1 : 1;
+    if (row + pawnDirection >= 0 && row + pawnDirection < 8) {
+        if (col > 0 && squares[(row + pawnDirection) * 8 + (col - 1)].textContent === pieces[opponentColor].pawn) return true;
+        if (col < 7 && squares[(row + pawnDirection) * 8 + (col + 1)].textContent === pieces[opponentColor].pawn) return true;
+    }
+
+    // Check for knight attacks
+    const knightMoves = [
+        [-2, -1], [-2, 1], [-1, -2], [-1, 2],
+        [1, -2], [1, 2], [2, -1], [2, 1]
+    ];
+    for (const [rowOffset, colOffset] of knightMoves) {
+        const newRow = row + rowOffset;
+        const newCol = col + colOffset;
+        if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
+            if (squares[newRow * 8 + newCol].textContent === pieces[opponentColor].knight) return true;
+        }
+    }
+
+    // Check for king attacks
+    const kingMoves = [
+        [-1, -1], [-1, 0], [-1, 1],
+        [0, -1], [0, 1],
+        [1, -1], [1, 0], [1, 1]
+    ];
+    for (const [rowOffset, colOffset] of kingMoves) {
+        const newRow = row + rowOffset;
+        const newCol = col + colOffset;
+        if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
+            if (squares[newRow * 8 + newCol].textContent === pieces[opponentColor].king) return true;
+        }
+    }
+
+    // Check for rook/queen attacks (horizontal and vertical)
+    const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    for (const [rowDir, colDir] of directions) {
+        let newRow = row + rowDir;
+        let newCol = col + colDir;
+        while (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
+            const piece = squares[newRow * 8 + newCol].textContent;
+            if (piece !== "") {
+                if (piece === pieces[opponentColor].rook || piece === pieces[opponentColor].queen) return true;
+                break;
+            }
+            newRow += rowDir;
+            newCol += colDir;
+        }
+    }
+
+    // Check for bishop/queen attacks (diagonals)
+    const diagonals = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
+    for (const [rowDir, colDir] of diagonals) {
+        let newRow = row + rowDir;
+        let newCol = col + colDir;
+        while (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
+            const piece = squares[newRow * 8 + newCol].textContent;
+            if (piece !== "") {
+                if (piece === pieces[opponentColor].bishop || piece === pieces[opponentColor].queen) return true;
+                break;
+            }
+            newRow += rowDir;
+            newCol += colDir;
+        }
+    }
+
+    return false;
+}
