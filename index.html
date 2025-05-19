@@ -9,6 +9,10 @@
   <body>
     <div class="game-container">
       <div class="left-panel">
+        <div class="chess-clock black-clock">
+          <h3>Black Time</h3>
+          <div id="black-time" class="time-display">10:00</div>
+        </div>
         <div class="captured-pieces captured-white">
           <h3>Captured by Black</h3>
           <div id="white-captured"></div>
@@ -43,15 +47,20 @@
       </div>
 
       <div class="right-panel">
+        <div class="chess-clock white-clock">
+          <h3>White Time</h3>
+          <div id="white-time" class="time-display">10:00</div>
+        </div>
+        <div class="captured-pieces captured-black">
+          <h3>Captured by White</h3>
+          <div id="black-captured"></div>
+        </div>
         <div class="move-history">
           <h3>Move History</h3>
           <div class="move-list" id="move-list"></div>
         </div>
         <button id="undo-button" class="chess-button">Undo Last Move</button>
-        <div class="captured-pieces captured-black">
-          <h3>Captured by White</h3>
-          <div id="black-captured"></div>
-        </div>
+        
       </div>
     </div>
     <div id="debug"></div>
