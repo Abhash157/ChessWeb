@@ -7,8 +7,51 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <div class="container">
-      <div class="chessboard" id="chessboard"></div>
+    <div class="game-container">
+      <div class="left-panel">
+        <div class="captured-pieces captured-white">
+          <h3>Captured by Black</h3>
+          <div id="white-captured"></div>
+        </div>
+      </div>
+
+      <div class="center-panel">
+        <div class="game-status" id="game-status">White to move</div>
+        <div class="chessboard" id="chessboard"></div>
+        
+        <!-- Pawn Promotion Modal -->
+        <div class="promotion-modal" id="promotion-modal">
+          <div class="promotion-options">
+            <div class="promotion-piece" data-piece="queen">
+              <span class="white-promotion">♕</span>
+              <span class="black-promotion">♛</span>
+            </div>
+            <div class="promotion-piece" data-piece="rook">
+              <span class="white-promotion">♖</span>
+              <span class="black-promotion">♜</span>
+            </div>
+            <div class="promotion-piece" data-piece="bishop">
+              <span class="white-promotion">♗</span>
+              <span class="black-promotion">♝</span>
+            </div>
+            <div class="promotion-piece" data-piece="knight">
+              <span class="white-promotion">♘</span>
+              <span class="black-promotion">♞</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="right-panel">
+        <div class="move-history">
+          <h3>Move History</h3>
+          <div class="move-list" id="move-list"></div>
+        </div>
+        <div class="captured-pieces captured-black">
+          <h3>Captured by White</h3>
+          <div id="black-captured"></div>
+        </div>
+      </div>
     </div>
     <div id="debug"></div>
 
