@@ -216,25 +216,33 @@ function requestAIMove() {
     }
     
     console.log('Starting AI thinking process...');
+    console.log(`requestAIMove: Using aiDifficulty = ${aiDifficulty} for this move calculation.`);
+    
     aiThinking = true;
     waitingForMove = true;
     
     const fen = getCurrentFEN();
-    // console.log('Current position (FEN):', fen); // Already logged in getCurrentFEN
     
-    // Clear previous analysis
-    sendToEngine('ucinewgame');
+    sendToEngine('ucinewgame'); 
     sendToEngine(`position fen ${fen}`);
+
+    // Calculate and set Stockfish Skill Level based on aiDifficulty (slider 1-15)
+    // Skill Level (Stockfish 0-20)
+    const calculatedSkillLevel = Math.round(((aiDifficulty - 1) / 14) * 20);
+    console.log(`Mapping AI Difficulty (slider ${aiDifficulty}) to Stockfish Skill Level ${calculatedSkillLevel}`);
+    sendToEngine(`setoption name Skill Level value ${calculatedSkillLevel}`);
     
-    // Set thinking time based on difficulty
+    // Set search parameters (depth or movetime) based on aiDifficulty
     if (aiDifficulty <= 5) {
-        // Lower difficulty: use fixed depth
-        console.log(`Setting engine depth to ${aiDifficulty}`);
-        sendToEngine(`go depth ${aiDifficulty}`);
+        // Lower difficulty (slider 1-5) also implies lower depth. Skill Level will make it play weaker.
+        let engineDepth = aiDifficulty; // Depth 1 to 5
+        console.log(`Engine: go depth ${engineDepth} (Skill Level: ${calculatedSkillLevel})`);
+        sendToEngine(`go depth ${engineDepth}`);
     } else {
-        // Higher difficulty: use more time for thinking
-        const thinkTime = (aiDifficulty - 5) * 500; // 0.5s to 5s
-        console.log(`Setting engine move time to ${thinkTime}ms`);
+        // Higher difficulty (slider 6-15) uses movetime. Skill Level also scales up.
+        // Thinking time increases from 0.5s (for slider level 6) to 5s (for slider level 15).
+        const thinkTime = (aiDifficulty - 5) * 500; 
+        console.log(`Engine: go movetime ${thinkTime}ms (Skill Level: ${calculatedSkillLevel})`);
         sendToEngine(`go movetime ${thinkTime}`);
     }
 }

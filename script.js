@@ -1119,6 +1119,9 @@ async function handleWhitePieceMove(square, sqRow, sqCol) {
         const rookNewSquareElement = squares[castlingDetails.rookNewSquare.row * 8 + castlingDetails.rookNewSquare.col];
         const rookSymbolToAnimate = rookOriginalSquareElement.textContent; // Capture rook symbol
 
+        // Remove dangerlight from original king square before it's cleared
+        selectedSquare.classList.remove("dangerlight");
+
         // 1. Clear pieces from original squares for animation
         selectedSquare.textContent = ""; // King's original square
         rookOriginalSquareElement.textContent = ""; // Rook's original square
@@ -1154,6 +1157,9 @@ async function handleWhitePieceMove(square, sqRow, sqCol) {
       }
       // If a king move was not castling, also update its rights & position
       if (pieceText === pieces.white.king && !moveData.wasCastling) {
+        const originalKingSquareElement = squares[originalRow * 8 + originalCol];
+        originalKingSquareElement.classList.remove("dangerlight");
+        
         pieces.white.kingRow = sqRow;
         pieces.white.kingCol = sqCol;
         gameState.whiteCanCastleKingside = false;
@@ -1205,6 +1211,9 @@ async function handleWhitePieceMove(square, sqRow, sqCol) {
       updateCapturedPieces();
       updateMoveHistory();
       checkForEndOfGame();
+      if (gameState.gameOver) {
+        stopClock();
+      }
       if (typeof checkAITurn === 'function' && !gameState.gameOver) {
         console.log('handleWhitePieceMove: Explicitly calling checkAITurn');
         checkAITurn();
@@ -1552,6 +1561,9 @@ async function handleBlackPieceMove(square, sqRow, sqCol) {
         const rookNewSquareElement = squares[castlingDetails.rookNewSquare.row * 8 + castlingDetails.rookNewSquare.col];
         const rookSymbolToAnimate = rookOriginalSquareElement.textContent; // Capture rook symbol
 
+        // Remove dangerlight from original king square before it's cleared
+        selectedSquare.classList.remove("dangerlight");
+
         // 1. Clear pieces from original squares for animation
         selectedSquare.textContent = ""; // King's original square
         rookOriginalSquareElement.textContent = ""; // Rook's original square
@@ -1587,6 +1599,9 @@ async function handleBlackPieceMove(square, sqRow, sqCol) {
       }
       // If a king move was not castling, also update its rights & position
       if (pieceText === pieces.black.king && !moveData.wasCastling) {
+          const originalKingSquareElement = squares[originalRow * 8 + originalCol];
+          originalKingSquareElement.classList.remove("dangerlight");
+
           pieces.black.kingRow = sqRow;
           pieces.black.kingCol = sqCol;
           gameState.blackCanCastleKingside = false;
@@ -1639,6 +1654,9 @@ async function handleBlackPieceMove(square, sqRow, sqCol) {
       updateCapturedPieces();
       updateMoveHistory();
       checkForEndOfGame();
+      if (gameState.gameOver) {
+        stopClock();
+      }
       if (typeof checkAITurn === 'function' && !gameState.gameOver) {
         console.log('handleBlackPieceMove: Explicitly calling checkAITurn');
         checkAITurn();
@@ -2254,35 +2272,48 @@ function getAllLegalMovesForPlayer(playerColor) {
  * Updates game status and gameState.gameOver accordingly.
  */
 function checkForEndOfGame() {
-  if (gameState.gameOver) return;
+  if (gameState.gameOver && !gameState.checkmate && !gameState.stalemate) {
+    // If gameOver is true but not due to checkmate/stalemate (e.g. timeout, resignation),
+    // we might not need to re-evaluate standard end-of-game conditions.
+    // However, this function is primarily for checkmate/stalemate detection.
+    // For now, let's proceed if it's not explicitly a checkmate/stalemate already.
+  }
 
   const currentPlayerColor = turn === PLAYER.WHITE ? 'white' : 'black';
   const opponentColor = turn === PLAYER.WHITE ? 'black' : 'white';
 
-  // Update the .checked status for the current player whose turn it is now
-  pieces[currentPlayerColor].checked = isKingInCheck(currentPlayerColor);
-  // Also ensure opponent's check status is cleared if they are not in check by this player
-  // (This might be redundant if analyzeCheck is comprehensive, but good for safety)
-  pieces[opponentColor].checked = isKingInCheck(opponentColor);
+  // Update the .checked status for both kings based on the current board state
+  pieces.white.checked = isKingInCheck('white');
+  pieces.black.checked = isKingInCheck('black');
 
+  // gameState.check reflects if the CURRENT player (whose turn it is) is in check
+  gameState.check = pieces[currentPlayerColor].checked;
 
   const legalMoves = getAllLegalMovesForPlayer(currentPlayerColor);
 
   if (legalMoves.length === 0) {
-    if (pieces[currentPlayerColor].checked) {
-      gameStatus.textContent = `Checkmate! ${opponentColor.charAt(0).toUpperCase() + opponentColor.slice(1)} wins!`;
-      gameState.gameOver = true;
+    gameState.gameOver = true; // Game is over
+    if (gameState.check) { // Current player is in check and has no legal moves
+      // Checkmate
+      gameState.checkmate = true;
+      gameState.stalemate = false; // Ensure stalemate is false
+      // gameStatus.textContent is handled by updateGameStatus()
     } else {
-      gameStatus.textContent = "Stalemate! It's a draw!";
-      gameState.gameOver = true;
+      // Stalemate
+      gameState.stalemate = true;
+      gameState.checkmate = false; // Ensure checkmate is false
+      // gameStatus.textContent is handled by updateGameStatus()
     }
-  } else if (pieces[currentPlayerColor].checked) {
-    // Game not over, but current player is in check.
-    // updateGameStatus will display this.
+  } else {
+    // Game is not over, reset flags
+    gameState.gameOver = false;
+    gameState.checkmate = false;
+    gameState.stalemate = false;
+    // gameState.check is already set based on pieces[currentPlayerColor].checked
   }
   
-  // After checkForEndOfGame, updateGameStatus is called from the main move handlers
-  // which will then reflect the latest check/gameOver state.
+  // updateGameStatus() will be called by the calling function (e.g., handleWhitePieceMove)
+  // to reflect the latest game state including check, checkmate, or stalemate.
 }
 
 // ===========================
