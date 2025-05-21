@@ -79,7 +79,7 @@
     <!-- Import main.js as a module to load all other modules -->
     <script type="module" src="js/main.js"></script>
     
-    <!-- Keep the AI.js as a separate script to maintain compatibility -->
-    <script src="js/ai.js"></script>
+    <!-- AI.js needs to be a module to use import statements -->
+    <script type="module" src="js/ai.js"></script>
   </body>
 </html>

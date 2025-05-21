@@ -8,7 +8,8 @@ import {
   PLAYER, 
   pieces, 
   StateEvents, 
-  subscribe 
+  subscribe,
+  whitePieces
 } from './state.js';
 import { highlightInvalidMove, cleanupAfterMove } from './board.js';
 import { getValidMovesForSquare } from './moves/moveValidator.js';
@@ -22,7 +23,7 @@ import { updateCapturedPieces } from './ui/capturedPieces.js';
  * Handles a square click event
  * @param {HTMLElement} square - The clicked square element
  */
-export function squareClick(square) {
+function squareClick(square) {
   // Get current state
   const state = getState();
   const { selectedSquare, turn, gameOver } = state;
@@ -39,8 +40,8 @@ export function squareClick(square) {
     return;
   }
   
-  // Ignore clicks if AI is making a move
-  if (state.ai.isMakingMove) {
+  // Ignore clicks if AI is making a move, UNLESS it's the AI itself calling the function
+  if (state.ai.isMakingMove && !state.ai.isExecutingMove) {
     console.log("AI is thinking, please wait");
     return;
   }
@@ -69,7 +70,7 @@ function handleFirstClick(square, piece, turn) {
   }
   
   // Check if the clicked piece belongs to the current player
-  const isPieceWhite = piece.charCodeAt(0) < 9900;
+  const isPieceWhite = whitePieces.includes(piece);
   if ((turn === PLAYER.WHITE && !isPieceWhite) || (turn === PLAYER.BLACK && isPieceWhite)) {
     console.log("Not your piece to move");
     highlightInvalidMove(square);
@@ -119,8 +120,8 @@ function handleSecondClick(targetSquare, selectedSquare, row, col) {
     const clickedPiece = targetSquare.textContent;
     if (clickedPiece) {
       const currentTurn = getState().turn;
-      const isPieceWhite = clickedPiece.charCodeAt(0) < 9900;
-      if ((currentTurn === PLAYER.WHITE && isPieceWhite) || (currentTurn === PLAYER.BLACK && !isPieceWhite)) {
+      const isClickedPieceWhite = whitePieces.includes(clickedPiece);
+      if ((currentTurn === PLAYER.WHITE && isClickedPieceWhite) || (currentTurn === PLAYER.BLACK && !isClickedPieceWhite)) {
         cleanupAfterMove();
         handleFirstClick(targetSquare, clickedPiece, currentTurn);
         return;
@@ -260,6 +261,12 @@ function handleAIStatusChange(changes) {
     }
   }
 }
+
+// Export the functions needed by other modules
+export {
+  squareClick,
+  checkGameStatus
+};
 
 // Export window-compatible functions for backward compatibility
 window.squareClick = squareClick; 

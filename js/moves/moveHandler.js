@@ -1,8 +1,11 @@
 /**
- * moveHandler.js - High-level move handling functionality
+ * moveHandler.js - High-level move handling for backward compatibility
+ * 
+ * This module provides a bridge between the old move handling system
+ * and the new centralized state management approach.
  */
 
-import { PLAYER, gameState, pieces, whitePieces, blackPieces, CLOCK } from '../gameState.js';
+import { getState, updateState, PLAYER, pieces } from '../state.js';
 import { moveWhite } from './whiteMoves.js';
 import { moveBlack } from './blackMoves.js';
 import { analyzeCheckPawnWhite, analyzeCheckPawnBlack, analyzeCheck } from './checkDetection.js';
@@ -10,27 +13,29 @@ import { startClock } from '../ui/clock.js';
 import { updateGameStatus } from '../ui/status.js';
 
 /**
- * Handles the click event on a chess square
+ * Handles the click event on a chess square for backward compatibility
  * @param {HTMLElement} square - The square that was clicked
  */
 export async function squareClick(square) {
-  console.log(`squareClick: Start of function. Current turn: ${gameState.turn === PLAYER.WHITE ? 'White' : 'Black'} (raw: ${gameState.turn})`);
-  if (gameState.gameOver && !window.isAIMakingMove) return; // Allow AI to finish its move even if game just ended
+  const state = getState();
+  console.log(`squareClick: Start of function. Current turn: ${state.turn === PLAYER.WHITE ? 'White' : 'Black'} (raw: ${state.turn})`);
+  
+  if (state.gameOver && !state.ai.isMakingMove) return; // Allow AI to finish its move even if game just ended
   
   // Don't allow human player to move if it's AI's turn, unless AI is making the move
-  if (window.aiActive && gameState.turn === window.aiColor && !window.isAIMakingMove) {
+  if (state.ai.active && state.turn === state.ai.color && !state.ai.isMakingMove) {
     console.log('Human click ignored: It is AI\'s turn.');
     return;
   }
 
   // Start the clock on the first move
-  if (!CLOCK.isRunning && gameState.moveHistory.length === 0) {
+  if (!state.clock.isRunning && state.moveHistory.length === 0) {
     startClock();
   }
 
-  if (gameState.turn === PLAYER.WHITE) {
+  if (state.turn === PLAYER.WHITE) {
     await moveWhite(square);
-    analyzeCheckPawnBlack(pieces.black, whitePieces);
+    analyzeCheckPawnBlack(pieces.black, pieces.white);
     analyzeCheck(pieces.black, pieces.white);
   } else {
     await moveBlack(square);
@@ -39,18 +44,15 @@ export async function squareClick(square) {
   }
   
   updateGameStatus(); // This will call checkAITurn if appropriate
-  console.log(`squareClick: End of function. Turn should have flipped. Current turn: ${gameState.turn === PLAYER.WHITE ? 'White' : 'Black'}`);
+  console.log(`squareClick: End of function. Turn should have flipped. Current turn: ${getState().turn === PLAYER.WHITE ? 'White' : 'Black'}`);
 }
-
-// Expose squareClick to the global scope for ai.js
-window.squareClick = squareClick;
 
 /**
  * Switches the current turn between players
  */
 export function switchTurn() {
-  // Don't directly reassign the imported turn variable
-  gameState.turn = gameState.turn === PLAYER.WHITE ? PLAYER.BLACK : PLAYER.WHITE;
-  window.turn = gameState.turn; // Keep window.turn in sync
-  console.log(`switchTurn: Turn switched to ${window.turn === PLAYER.WHITE ? 'White' : 'Black'}`);
+  const currentTurn = getState().turn;
+  const newTurn = currentTurn === PLAYER.WHITE ? PLAYER.BLACK : PLAYER.WHITE;
+  updateState({ turn: newTurn });
+  console.log(`switchTurn: Turn switched to ${newTurn === PLAYER.WHITE ? 'White' : 'Black'}`);
 } 

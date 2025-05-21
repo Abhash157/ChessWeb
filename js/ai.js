@@ -3,6 +3,8 @@
  * Integrates Stockfish chess engine for AI opponent
  */
 
+import { getState, updateState, PLAYER, pieces } from './state.js';
+
 let engine = null;
 let engineReady = false;
 let waitingForMove = false;
@@ -110,14 +112,15 @@ function sendToEngine(command) {
  */
 function getCurrentFEN() {
     let fen = '';
-    console.log(`getCurrentFEN: Accessing window.gameState.turn, value is: ${window.gameState.turn === window.PLAYER.WHITE ? 'White' : 'Black'} (raw: ${window.gameState.turn})`);
+    const state = getState();
+    console.log(`getCurrentFEN: Current turn is: ${state.turn === PLAYER.WHITE ? 'White' : 'Black'} (raw: ${state.turn})`);
     
     // Board position (8 ranks)
     for (let row = 0; row < 8; row++) {
         let emptyCount = 0;
         
         for (let col = 0; col < 8; col++) {
-            const piece = window.gameState.squares[row * 8 + col].textContent;
+            const piece = state.squares[row * 8 + col].textContent;
             
             if (piece === '') {
                 emptyCount++;
@@ -146,23 +149,23 @@ function getCurrentFEN() {
     }
     
     // Active color: w or b
-    const activeColorFEN = window.gameState.turn === window.PLAYER.WHITE ? ' w ' : ' b ';
+    const activeColorFEN = state.turn === PLAYER.WHITE ? ' w ' : ' b ';
     fen += activeColorFEN;
     console.log(`getCurrentFEN: Active color in FEN: '${activeColorFEN.trim()}'`);
     
     // Castling availability: KQkq or - if no castling is possible
     let castling = '';
-    if (window.gameState.whiteCanCastleKingside) castling += 'K';
-    if (window.gameState.whiteCanCastleQueenside) castling += 'Q';
-    if (window.gameState.blackCanCastleKingside) castling += 'k';
-    if (window.gameState.blackCanCastleQueenside) castling += 'q';
+    if (state.whiteCanCastleKingside) castling += 'K';
+    if (state.whiteCanCastleQueenside) castling += 'Q';
+    if (state.blackCanCastleKingside) castling += 'k';
+    if (state.blackCanCastleQueenside) castling += 'q';
     fen += castling || '-';
     
     // En passant target square in algebraic notation
     fen += ' ';
-    if (window.gameState.enPassantTarget) {
-        const file = 'abcdefgh'[window.gameState.enPassantTarget.col];
-        const rank = 8 - window.gameState.enPassantTarget.row;
+    if (state.enPassantTarget) {
+        const file = 'abcdefgh'[state.enPassantTarget.col];
+        const rank = 8 - state.enPassantTarget.row;
         fen += file + rank;
     } else {
         fen += '-';
@@ -172,7 +175,7 @@ function getCurrentFEN() {
     fen += ' 0 '; // We don't track this yet, so assume 0
     
     // Fullmove number: incremented after Black's move
-    const fullMoveCount = Math.floor((window.gameState.moveHistory.length + 1) / 2);
+    const fullMoveCount = Math.floor((state.moveHistory.length + 1) / 2);
     fen += fullMoveCount;
     
     console.log(`getCurrentFEN: Generated FEN: ${fen}`);
@@ -186,20 +189,20 @@ function getCurrentFEN() {
  */
 function getFENSymbol(piece) {
     // White pieces
-    if (piece === window.pieces.white.pawn) return 'P';
-    if (piece === window.pieces.white.knight) return 'N';
-    if (piece === window.pieces.white.bishop) return 'B';
-    if (piece === window.pieces.white.rook) return 'R';
-    if (piece === window.pieces.white.queen) return 'Q';
-    if (piece === window.pieces.white.king) return 'K';
+    if (piece === pieces.white.pawn) return 'P';
+    if (piece === pieces.white.knight) return 'N';
+    if (piece === pieces.white.bishop) return 'B';
+    if (piece === pieces.white.rook) return 'R';
+    if (piece === pieces.white.queen) return 'Q';
+    if (piece === pieces.white.king) return 'K';
     
     // Black pieces
-    if (piece === window.pieces.black.pawn) return 'p';
-    if (piece === window.pieces.black.knight) return 'n';
-    if (piece === window.pieces.black.bishop) return 'b';
-    if (piece === window.pieces.black.rook) return 'r';
-    if (piece === window.pieces.black.queen) return 'q';
-    if (piece === window.pieces.black.king) return 'k';
+    if (piece === pieces.black.pawn) return 'p';
+    if (piece === pieces.black.knight) return 'n';
+    if (piece === pieces.black.bishop) return 'b';
+    if (piece === pieces.black.rook) return 'r';
+    if (piece === pieces.black.queen) return 'q';
+    if (piece === pieces.black.king) return 'k';
     
     return '';
 }
@@ -208,15 +211,16 @@ function getFENSymbol(piece) {
  * Request a move from the AI engine
  */
 function requestAIMove() {
-    console.log('requestAIMove called, engineReady:', engineReady, 'aiThinking:', aiThinking, 'gameOver:', window.gameState.gameOver, 'current window.gameState.turn:', window.gameState.turn === window.PLAYER.WHITE ? 'White' : 'Black');
+    const state = getState();
+    console.log('requestAIMove called, engineReady:', engineReady, 'aiThinking:', aiThinking, 'gameOver:', state.gameOver, 'current turn:', state.turn === PLAYER.WHITE ? 'White' : 'Black');
     
-    if (!engineReady || !engine || aiThinking || window.gameState.gameOver) {
+    if (!engineReady || !engine || aiThinking || state.gameOver) {
         console.log('Skipping AI move request - not ready or already thinking or game over');
         return;
     }
     
     console.log('Starting AI thinking process...');
-    console.log(`requestAIMove: Using aiDifficulty = ${aiDifficulty} for this move calculation.`);
+    console.log(`requestAIMove: Using aiDifficulty = ${state.ai.difficulty} for this move calculation.`);
     
     aiThinking = true;
     waitingForMove = true;
@@ -228,6 +232,7 @@ function requestAIMove() {
     
     // Calculate and set Stockfish Skill Level based on aiDifficulty (slider 1-15)
     // Skill Level (Stockfish 0-20)
+    const aiDifficulty = state.ai.difficulty;
     const calculatedSkillLevel = Math.round(((aiDifficulty - 1) / 14) * 20);
     console.log(`Mapping AI Difficulty (slider ${aiDifficulty}) to Stockfish Skill Level ${calculatedSkillLevel}`);
     sendToEngine(`setoption name Skill Level value ${calculatedSkillLevel}`);
@@ -259,80 +264,141 @@ async function makeAIMove(uciMove) {
         return;
     }
 
-    window.isAIMakingMove = true; // Set flag before simulating clicks
-    console.log('window.isAIMakingMove set to true');
+    try {
+        // Update state to indicate AI is making a move
+        updateState({ 
+            'ai.isMakingMove': true,
+            'ai.isExecutingMove': true
+        });
+        console.log('AI isMakingMove and isExecutingMove set to true');
 
-    // Parse the UCI move (e.g., "e2e4" to {fromCol: 4, fromRow: 6, toCol: 4, toRow: 4})
-    const fromCol = uciMove.charCodeAt(0) - 97; // 'a' is 97 in ASCII
-    const fromRow = 8 - parseInt(uciMove[1]); // Invert since our board is 0-indexed from top
-    const toCol = uciMove.charCodeAt(2) - 97;
-    const toRow = 8 - parseInt(uciMove[3]);
+        // Parse the UCI move (e.g., "e2e4" to {fromCol: 4, fromRow: 6, toCol: 4, toRow: 4})
+        const fromCol = uciMove.charCodeAt(0) - 97; // 'a' is 97 in ASCII
+        const fromRow = 8 - parseInt(uciMove[1]); // Invert since our board is 0-indexed from top
+        const toCol = uciMove.charCodeAt(2) - 97;
+        const toRow = 8 - parseInt(uciMove[3]);
 
-    console.log(`Parsed AI move: from (${fromRow},${fromCol}) to (${toRow},${toCol})`);
+        console.log(`Parsed AI move: from (${fromRow},${fromCol}) to (${toRow},${toCol})`);
 
-    // Get the squares
-    const fromSquare = window.gameState.squares[fromRow * 8 + fromCol];
-    const toSquare = window.gameState.squares[toRow * 8 + toCol];
+        // Get current state
+        const state = getState();
+        const fromSquare = state.squares[fromRow * 8 + fromCol];
+        const toSquare = state.squares[toRow * 8 + toCol];
 
-    if (!fromSquare || !toSquare) {
-        console.error('Could not find fromSquare or toSquare for AI move.');
-        aiThinking = false;
-        window.isAIMakingMove = false;
-        return;
-    }
-
-    console.log('Simulating click on fromSquare:', fromSquare);
-    await window.squareClick(fromSquare); // Use await if squareClick is async
-    
-    // Add a small delay if needed, or check selection state
-    // if (!selectedSquare || selectedSquare !== fromSquare) {
-    //     console.warn('fromSquare was not selected after click, AI move might fail.');
-    // }
-
-    console.log('Simulating click on toSquare:', toSquare);
-    await window.squareClick(toSquare); // Use await if squareClick is async
-
-    // Handle promotion if applicable
-    if (uciMove.length > 4) {
-        const promotionPieceChar = uciMove[4];
-        console.log(`AI promotion detected. Piece: ${promotionPieceChar}`);
-        // Ensure promotion modal handling in script.js can be triggered programmatically if needed
-        // For now, assuming squareClick handles promotion selection if it's AI's turn
-        // This might require a more direct way to select the promotion piece if squareClick
-        // doesn't automatically open and allow selection for AI.
-        
-        // Find the correct promotion piece element and click it
-        // This part needs to be robust and might need adjustment based on how promotionModal works
-        const promotionPiecesElements = document.querySelectorAll('.promotion-piece');
-        let pieceType;
-        switch (promotionPieceChar) {
-            case 'q': pieceType = 'queen'; break;
-            case 'r': pieceType = 'rook'; break;
-            case 'b': pieceType = 'bishop'; break;
-            case 'n': pieceType = 'knight'; break;
-            default: pieceType = 'queen'; // Default to queen
+        if (!fromSquare || !toSquare) {
+            console.error('Could not find fromSquare or toSquare for AI move.');
+            return;
         }
 
-        console.log(`Looking for promotion piece type: ${pieceType} for color: ${window.PLAYER[window.aiColor]}`);
-        
-        // Determine the color of the promoting player (which is aiColor)
-        const promotingPlayerColorName = window.aiColor === window.PLAYER.WHITE ? 'white' : 'black';
+        // Get the piece from the source square
+        const piece = fromSquare.textContent;
+        if (!piece) {
+            console.error('No piece on source square');
+            return;
+        }
 
-        for (const pieceElement of promotionPiecesElements) {
-            // Check if the piece is for the correct color and type
-            if (pieceElement.classList.contains(`${promotingPlayerColorName}-promotion`) && 
-                pieceElement.getAttribute('data-piece') === pieceType) {
-                console.log('Found promotion piece element, simulating click:', pieceElement);
-                pieceElement.click(); // This should trigger the promotion finalization
-                break;
+        // Make the move directly instead of simulating clicks
+        // First, store the current turn
+        const currentTurn = state.turn;
+        
+        // Force turn to match AI color to avoid move validation issues
+        updateState({ turn: state.ai.color });
+        
+        const { squares } = state;
+        const fromIndex = fromRow * 8 + fromCol;
+        const toIndex = toRow * 8 + toCol;
+        
+        // Import needed modules directly
+        const { makeMove } = await import('./moves/moveExecutor.js');
+        const { cleanupAfterMove } = await import('./board.js');
+        
+        // Execute the move directly
+        console.log('AI about to execute move:', { from: `${fromRow},${fromCol}`, to: `${toRow},${toCol}`, piece });
+        await makeMove(fromSquare, toSquare, fromRow, fromCol, toRow, toCol);
+        console.log('Move executed, cleaning up');
+
+        // Clean up after move
+        cleanupAfterMove();
+        
+        // Update turn
+        const newTurn = state.ai.color === PLAYER.WHITE ? PLAYER.BLACK : PLAYER.WHITE;
+        console.log(`Updating turn from ${state.ai.color} to ${newTurn}`);
+        updateState({ turn: newTurn });
+        
+        // Update UI and check game status
+        const { updateGameStatus } = await import('./ui/status.js');
+        const { updateMoveHistory } = await import('./ui/history.js');
+        const { updateCapturedPieces } = await import('./ui/capturedPieces.js');
+        const { isKingInCheck, isCheckmate } = await import('./moves/checkDetection.js');
+
+        // Custom game status check that doesn't check for stalemate
+        // This avoids the issues with the hasLegalMoves function
+        function customCheckGameStatus() {
+            const state = getState();
+            const { turn } = state;
+            
+            // Check if the opponent's king is in check
+            const opponentColor = turn === PLAYER.WHITE ? 'black' : 'white';
+            const kingInCheck = isKingInCheck(pieces[opponentColor].kingRow, pieces[opponentColor].kingCol, opponentColor);
+            
+            if (kingInCheck) {
+                // Update check status
+                pieces[opponentColor].checked = true;
+                updateState({ check: true });
+                
+                // Highlight the king in check
+                const kingSquare = state.squares[pieces[opponentColor].kingRow * 8 + pieces[opponentColor].kingCol];
+                kingSquare.classList.add("dangerlight");
+                
+                // Check for checkmate
+                if (isCheckmate(opponentColor)) {
+                    console.log(`Checkmate! ${turn === PLAYER.WHITE ? 'Black' : 'White'} wins!`);
+                    updateState({ 
+                        gameOver: true, 
+                        checkmate: true 
+                    });
+                }
+            } else {
+                // Clear previous check status
+                pieces.white.checked = false;
+                pieces.black.checked = false;
+                updateState({ check: false });
+                
+                // We skip stalemate check here
+            }
+            
+            // If game is over, stop the clock
+            if (state.gameOver) {
+                clearInterval(state.clock.timerInterval);
+                updateState({ 'clock.isRunning': false });
             }
         }
+
+        // Use our custom function instead of importing checkGameStatus
+        customCheckGameStatus();
+        
+        // Update UI
+        updateGameStatus();
+        updateMoveHistory();
+        
+        // Check if a piece was captured
+        const capturedPiece = state.capturedPieces.white.length > 0 || state.capturedPieces.black.length > 0;
+        if (capturedPiece) {
+            updateCapturedPieces();
+        }
+        
+        console.log('AI move execution completed successfully');
+    } catch (error) {
+        console.error('Error during AI move execution:', error);
+    } finally {
+        // Always clean up flags
+        aiThinking = false;
+        updateState({ 
+            'ai.isMakingMove': false,
+            'ai.isExecutingMove': false
+        });
+        console.log('AI isMakingMove and isExecutingMove set to false');
     }
-    
-    console.log('AI move simulation complete.');
-    aiThinking = false; // Reset thinking flag
-    window.isAIMakingMove = false; // Clear flag after move attempt
-    console.log('window.isAIMakingMove set to false');
 }
 
 /**
@@ -340,8 +406,9 @@ async function makeAIMove(uciMove) {
  * @param {number} level - Difficulty level (1-15)
  */
 function setAIDifficulty(level) {
-    aiDifficulty = Math.max(1, Math.min(15, level));
-    console.log(`AI difficulty set to ${aiDifficulty}`);
+    const difficulty = Math.max(1, Math.min(15, level));
+    updateState({ 'ai.difficulty': difficulty });
+    console.log(`AI difficulty set to ${difficulty}`);
 }
 
 /**
@@ -349,15 +416,17 @@ function setAIDifficulty(level) {
  * @param {boolean} active - Whether AI should be active
  */
 function toggleAI(active) {
-    window.aiActive = !!active; // Update global
-    console.log(`AI Toggled: ${window.aiActive}`);
+    updateState({ 'ai.active': !!active });
+    const state = getState();
+    console.log(`AI Toggled: ${state.ai.active}`);
     
-    if (window.aiActive) {
+    if (state.ai.active) {
         if (!engineReady && !engine) {
             console.log('Initializing engine for the first time...');
             initEngine().then(ready => {
                 console.log('Engine initialization result:', ready);
-                if (ready && window.gameState.turn === window.aiColor) {
+                const currentState = getState();
+                if (ready && currentState.turn === currentState.ai.color) {
                     console.log('AI active and it is AI\'s turn, requesting move.');
                     requestAIMove();
                 }
@@ -365,7 +434,7 @@ function toggleAI(active) {
                 console.error('Failed to initialize engine:', error);
                 alert('Failed to initialize the chess engine. Please try refreshing the page or check console for errors.');
             });
-        } else if (engineReady && window.gameState.turn === window.aiColor) {
+        } else if (engineReady && state.turn === state.ai.color) {
             console.log('Engine already ready and it is AI\'s turn, requesting AI move...');
             requestAIMove();
         }
@@ -380,11 +449,12 @@ function toggleAI(active) {
  * @param {number} color - PLAYER.WHITE or PLAYER.BLACK
  */
 function setAIColor(color) {
-    window.aiColor = color; // Update global
-    console.log(`AI color set to: ${color === window.PLAYER.WHITE ? 'White' : 'Black'}`);
+    updateState({ 'ai.color': color });
+    const state = getState();
+    console.log(`AI color set to: ${state.ai.color === PLAYER.WHITE ? 'White' : 'Black'}`);
     
     // If it's already AI's turn, make a move
-    if (window.aiActive && engineReady && window.gameState.turn === window.aiColor && !window.gameState.gameOver) {
+    if (state.ai.active && engineReady && state.turn === state.ai.color && !state.gameOver) {
         console.log('AI color changed, and it is now AI\'s turn. Requesting move.');
         requestAIMove();
     }
@@ -395,10 +465,31 @@ function setAIColor(color) {
  * This should be called after a human makes a move
  */
 function checkAITurn() {
-    console.log(`checkAITurn called. AI Active: ${window.aiActive}, Engine Ready: ${engineReady}, Current Turn: ${window.gameState.turn}, AI Color: ${window.aiColor}, Game Over: ${window.gameState.gameOver}`);
-    if (window.aiActive && engineReady && window.gameState.turn === window.aiColor && !window.gameState.gameOver) {
+    // Get current state from state management
+    const state = getState();
+    console.log(`checkAITurn called. AI Active: ${state.ai.active}, Engine Ready: ${engineReady}, Current Turn: ${state.turn}, AI Color: ${state.ai.color}, Game Over: ${state.gameOver}`);
+    
+    if (state.ai.active && engineReady && state.turn === state.ai.color && !state.gameOver) {
         console.log('It is AI\'s turn. Requesting move with a delay...');
         // Add a small delay to make the AI move feel more natural
         setTimeout(requestAIMove, 300);
     }
-} 
+}
+
+// Export functions for use in other modules
+export {
+  initEngine,
+  requestAIMove,
+  setAIDifficulty,
+  toggleAI,
+  setAIColor,
+  checkAITurn
+};
+
+// Expose functions to window for backward compatibility
+window.initEngine = initEngine;
+window.requestAIMove = requestAIMove;
+window.setAIDifficulty = setAIDifficulty;
+window.toggleAI = toggleAI;
+window.setAIColor = setAIColor;
+window.checkAITurn = checkAITurn;

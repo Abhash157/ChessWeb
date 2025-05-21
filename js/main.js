@@ -10,22 +10,31 @@ import {
   getState, 
   updateState, 
   resetState,
-  PLAYER 
+  PLAYER,
+  setupWindowCompatibility
 } from './state.js';
+import { squareClick } from './moveHandler.js';
+import { 
+  initEngine, 
+  checkAITurn 
+} from './ai.js';
 
-// Global settings for AI
-window.aiActive = false;
-window.aiColor = 1; // Black by default
-window.aiDifficulty = 10; // Medium difficulty by default
-window.aiThinking = false;
-window.waitingForMove = false;
-window.isAIMakingMove = false;
+// Global settings for AI - these will be managed by state.js via setupWindowCompatibility
+// window.aiActive = false;
+// window.aiColor = 1; 
+// window.aiDifficulty = 10;
+// window.aiThinking = false;
+// window.waitingForMove = false;
+// window.isAIMakingMove = false;
 
 /**
  * Initializes the chess application
  */
 function initChess() {
   console.log('Initializing chess application...');
+  
+  // Setup window compatibility layer first, providing the squareClick handler
+  setupWindowCompatibility(squareClick);
   
   // Create the chessboard
   createChessboard();

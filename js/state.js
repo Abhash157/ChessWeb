@@ -128,7 +128,8 @@ const _state = {
     difficulty: 10,
     thinking: false,
     waitingForMove: false,
-    isMakingMove: false
+    isMakingMove: false,
+    isExecutingMove: false
   }
 };
 
@@ -300,18 +301,22 @@ export function resetState() {
 // For backward compatibility with existing code during transition
 // This exposes the most crucial parts of the state to the window object
 // but should be phased out as modules are updated
-export function setupWindowCompatibility() {
+export function setupWindowCompatibility(squareClickHandler) {
   window.turn = _state.turn;
   window.selectedSquare = _state.selectedSquare;
   window.isAIMakingMove = _state.ai.isMakingMove;
   window.PLAYER = PLAYER;
-  window.gameState = _state;
+  window.gameState = _state; // Expose the internal _state for compatibility if modules expect it
   window.pieces = pieces;
   window.aiActive = _state.ai.active;
   window.aiColor = _state.ai.color;
   window.aiDifficulty = _state.ai.difficulty;
   window.aiThinking = _state.ai.thinking;
   window.waitingForMove = _state.ai.waitingForMove;
+
+  if (squareClickHandler) {
+    window.squareClick = squareClickHandler;
+  }
   
   // Update window objects when state changes
   subscribe(StateEvents.TURN_CHANGE, () => {
@@ -333,4 +338,5 @@ export function setupWindowCompatibility() {
 }
 
 // Initialize window compatibility on module load
-setupWindowCompatibility(); 
+// We remove the direct call here. It will be called from main.js with the handler.
+// setupWindowCompatibility(); 
