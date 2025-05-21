@@ -343,16 +343,11 @@ async function makeAIMove(uciMove) {
             
             if (kingInCheck) {
                 // Update check status
-                pieces[opponentColor].checked = true;
                 updateState({ check: true });
-                
-                // Highlight the king in check
-                const kingSquare = state.squares[pieces[opponentColor].kingRow * 8 + pieces[opponentColor].kingCol];
-                kingSquare.classList.add("dangerlight");
                 
                 // Check for checkmate
                 if (isCheckmate(opponentColor)) {
-                    console.log(`Checkmate! ${turn === PLAYER.WHITE ? 'Black' : 'White'} wins!`);
+                    console.log(`Checkmate! ${turn === PLAYER.WHITE ? 'White' : 'Black'} wins!`);
                     updateState({ 
                         gameOver: true, 
                         checkmate: true 
@@ -360,8 +355,6 @@ async function makeAIMove(uciMove) {
                 }
             } else {
                 // Clear previous check status
-                pieces.white.checked = false;
-                pieces.black.checked = false;
                 updateState({ check: false });
                 
                 // We skip stalemate check here

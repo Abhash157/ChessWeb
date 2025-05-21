@@ -40,11 +40,13 @@ export function updateMoveHistory() {
     moveNumberCell.textContent = moveNumber;
     
     const whiteMoveCell = document.createElement('td');
-    whiteMoveCell.textContent = whiteMove;
+    // Extract notation from move object if it's an object
+    whiteMoveCell.textContent = typeof whiteMove === 'object' && whiteMove !== null ? whiteMove.notation || '' : whiteMove;
     whiteMoveCell.classList.add('white-move');
     
     const blackMoveCell = document.createElement('td');
-    blackMoveCell.textContent = blackMove;
+    // Extract notation from move object if it's an object
+    blackMoveCell.textContent = typeof blackMove === 'object' && blackMove !== null ? blackMove.notation || '' : blackMove;
     blackMoveCell.classList.add('black-move');
     
     row.appendChild(moveNumberCell);

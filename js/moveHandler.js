@@ -116,6 +116,13 @@ function handleSecondClick(targetSquare, selectedSquare, row, col) {
     console.log("Invalid move");
     highlightInvalidMove(targetSquare);
     
+    // Clear all movelights first
+    const state = getState();
+    for (let i = 0; i < 64; i++) {
+      state.squares[i].classList.remove("movelight");
+      state.squares[i].classList.remove("takelight");
+    }
+    
     // If clicked on own piece, select that piece instead
     const clickedPiece = targetSquare.textContent;
     if (clickedPiece) {
@@ -127,6 +134,9 @@ function handleSecondClick(targetSquare, selectedSquare, row, col) {
         return;
       }
     }
+    
+    // For any other invalid move, clear selection
+    cleanupAfterMove();
   }
 }
 
@@ -206,17 +216,12 @@ function checkGameStatus() {
   const kingInCheck = isKingInCheck(pieces[opponentColor].kingRow, pieces[opponentColor].kingCol, opponentColor);
   
   if (kingInCheck) {
-    // Update check status
-    pieces[opponentColor].checked = true;
+    // Update check status in state
     updateState({ check: true });
-    
-    // Highlight the king in check
-    const kingSquare = state.squares[pieces[opponentColor].kingRow * 8 + pieces[opponentColor].kingCol];
-    kingSquare.classList.add("dangerlight");
     
     // Check for checkmate
     if (isCheckmate(opponentColor)) {
-      console.log(`Checkmate! ${turn === PLAYER.WHITE ? 'Black' : 'White'} wins!`);
+      console.log(`Checkmate! ${turn === PLAYER.WHITE ? 'White' : 'Black'} wins!`);
       updateState({ 
         gameOver: true, 
         checkmate: true 
@@ -224,8 +229,6 @@ function checkGameStatus() {
     }
   } else {
     // Clear previous check status
-    pieces.white.checked = false;
-    pieces.black.checked = false;
     updateState({ check: false });
     
     // Check for stalemate
