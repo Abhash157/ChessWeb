@@ -9,7 +9,7 @@ let waitingForMove = false;
 let aiDifficulty = 10; // Default: search depth 10
 let aiThinking = false;
 window.aiActive = false; // Expose to global scope
-window.aiColor = PLAYER.BLACK; // AI plays as black by default, expose to global scope
+window.aiColor = 1; // Default to Black (corresponds to PLAYER.BLACK)
 window.isAIMakingMove = false; // Flag for AI-driven moves
 
 /**
@@ -110,14 +110,14 @@ function sendToEngine(command) {
  */
 function getCurrentFEN() {
     let fen = '';
-    console.log(`getCurrentFEN: Accessing window.turn, value is: ${window.turn === PLAYER.WHITE ? 'White' : 'Black'} (raw: ${window.turn})`);
+    console.log(`getCurrentFEN: Accessing window.gameState.turn, value is: ${window.gameState.turn === window.PLAYER.WHITE ? 'White' : 'Black'} (raw: ${window.gameState.turn})`);
     
     // Board position (8 ranks)
     for (let row = 0; row < 8; row++) {
         let emptyCount = 0;
         
         for (let col = 0; col < 8; col++) {
-            const piece = squares[row * 8 + col].textContent;
+            const piece = window.gameState.squares[row * 8 + col].textContent;
             
             if (piece === '') {
                 emptyCount++;
@@ -146,23 +146,23 @@ function getCurrentFEN() {
     }
     
     // Active color: w or b
-    const activeColorFEN = window.turn === PLAYER.WHITE ? ' w ' : ' b ';
+    const activeColorFEN = window.gameState.turn === window.PLAYER.WHITE ? ' w ' : ' b ';
     fen += activeColorFEN;
     console.log(`getCurrentFEN: Active color in FEN: '${activeColorFEN.trim()}'`);
     
     // Castling availability: KQkq or - if no castling is possible
     let castling = '';
-    if (gameState.whiteCanCastleKingside) castling += 'K';
-    if (gameState.whiteCanCastleQueenside) castling += 'Q';
-    if (gameState.blackCanCastleKingside) castling += 'k';
-    if (gameState.blackCanCastleQueenside) castling += 'q';
+    if (window.gameState.whiteCanCastleKingside) castling += 'K';
+    if (window.gameState.whiteCanCastleQueenside) castling += 'Q';
+    if (window.gameState.blackCanCastleKingside) castling += 'k';
+    if (window.gameState.blackCanCastleQueenside) castling += 'q';
     fen += castling || '-';
     
     // En passant target square in algebraic notation
     fen += ' ';
-    if (gameState.enPassantTarget) {
-        const file = 'abcdefgh'[gameState.enPassantTarget.col];
-        const rank = 8 - gameState.enPassantTarget.row;
+    if (window.gameState.enPassantTarget) {
+        const file = 'abcdefgh'[window.gameState.enPassantTarget.col];
+        const rank = 8 - window.gameState.enPassantTarget.row;
         fen += file + rank;
     } else {
         fen += '-';
@@ -172,7 +172,7 @@ function getCurrentFEN() {
     fen += ' 0 '; // We don't track this yet, so assume 0
     
     // Fullmove number: incremented after Black's move
-    const fullMoveCount = Math.floor((gameState.moveHistory.length + 1) / 2);
+    const fullMoveCount = Math.floor((window.gameState.moveHistory.length + 1) / 2);
     fen += fullMoveCount;
     
     console.log(`getCurrentFEN: Generated FEN: ${fen}`);
@@ -186,20 +186,20 @@ function getCurrentFEN() {
  */
 function getFENSymbol(piece) {
     // White pieces
-    if (piece === pieces.white.pawn) return 'P';
-    if (piece === pieces.white.knight) return 'N';
-    if (piece === pieces.white.bishop) return 'B';
-    if (piece === pieces.white.rook) return 'R';
-    if (piece === pieces.white.queen) return 'Q';
-    if (piece === pieces.white.king) return 'K';
+    if (piece === window.pieces.white.pawn) return 'P';
+    if (piece === window.pieces.white.knight) return 'N';
+    if (piece === window.pieces.white.bishop) return 'B';
+    if (piece === window.pieces.white.rook) return 'R';
+    if (piece === window.pieces.white.queen) return 'Q';
+    if (piece === window.pieces.white.king) return 'K';
     
     // Black pieces
-    if (piece === pieces.black.pawn) return 'p';
-    if (piece === pieces.black.knight) return 'n';
-    if (piece === pieces.black.bishop) return 'b';
-    if (piece === pieces.black.rook) return 'r';
-    if (piece === pieces.black.queen) return 'q';
-    if (piece === pieces.black.king) return 'k';
+    if (piece === window.pieces.black.pawn) return 'p';
+    if (piece === window.pieces.black.knight) return 'n';
+    if (piece === window.pieces.black.bishop) return 'b';
+    if (piece === window.pieces.black.rook) return 'r';
+    if (piece === window.pieces.black.queen) return 'q';
+    if (piece === window.pieces.black.king) return 'k';
     
     return '';
 }
@@ -208,9 +208,9 @@ function getFENSymbol(piece) {
  * Request a move from the AI engine
  */
 function requestAIMove() {
-    console.log('requestAIMove called, engineReady:', engineReady, 'aiThinking:', aiThinking, 'gameOver:', gameState.gameOver, 'current window.turn:', window.turn === PLAYER.WHITE ? 'White' : 'Black');
+    console.log('requestAIMove called, engineReady:', engineReady, 'aiThinking:', aiThinking, 'gameOver:', window.gameState.gameOver, 'current window.gameState.turn:', window.gameState.turn === window.PLAYER.WHITE ? 'White' : 'Black');
     
-    if (!engineReady || !engine || aiThinking || gameState.gameOver) {
+    if (!engineReady || !engine || aiThinking || window.gameState.gameOver) {
         console.log('Skipping AI move request - not ready or already thinking or game over');
         return;
     }
@@ -223,9 +223,9 @@ function requestAIMove() {
     
     const fen = getCurrentFEN();
     
-    sendToEngine('ucinewgame'); 
+    sendToEngine('ucinewgame');
     sendToEngine(`position fen ${fen}`);
-
+    
     // Calculate and set Stockfish Skill Level based on aiDifficulty (slider 1-15)
     // Skill Level (Stockfish 0-20)
     const calculatedSkillLevel = Math.round(((aiDifficulty - 1) / 14) * 20);
@@ -271,8 +271,8 @@ async function makeAIMove(uciMove) {
     console.log(`Parsed AI move: from (${fromRow},${fromCol}) to (${toRow},${toCol})`);
 
     // Get the squares
-    const fromSquare = squares[fromRow * 8 + fromCol];
-    const toSquare = squares[toRow * 8 + toCol];
+    const fromSquare = window.gameState.squares[fromRow * 8 + fromCol];
+    const toSquare = window.gameState.squares[toRow * 8 + toCol];
 
     if (!fromSquare || !toSquare) {
         console.error('Could not find fromSquare or toSquare for AI move.');
@@ -282,7 +282,7 @@ async function makeAIMove(uciMove) {
     }
 
     console.log('Simulating click on fromSquare:', fromSquare);
-    await squareClick(fromSquare); // Use await if squareClick is async
+    await window.squareClick(fromSquare); // Use await if squareClick is async
     
     // Add a small delay if needed, or check selection state
     // if (!selectedSquare || selectedSquare !== fromSquare) {
@@ -290,7 +290,7 @@ async function makeAIMove(uciMove) {
     // }
 
     console.log('Simulating click on toSquare:', toSquare);
-    await squareClick(toSquare); // Use await if squareClick is async
+    await window.squareClick(toSquare); // Use await if squareClick is async
 
     // Handle promotion if applicable
     if (uciMove.length > 4) {
@@ -313,10 +313,10 @@ async function makeAIMove(uciMove) {
             default: pieceType = 'queen'; // Default to queen
         }
 
-        console.log(`Looking for promotion piece type: ${pieceType} for color: ${PLAYER[window.aiColor]}`);
+        console.log(`Looking for promotion piece type: ${pieceType} for color: ${window.PLAYER[window.aiColor]}`);
         
         // Determine the color of the promoting player (which is aiColor)
-        const promotingPlayerColorName = window.aiColor === PLAYER.WHITE ? 'white' : 'black';
+        const promotingPlayerColorName = window.aiColor === window.PLAYER.WHITE ? 'white' : 'black';
 
         for (const pieceElement of promotionPiecesElements) {
             // Check if the piece is for the correct color and type
@@ -357,7 +357,7 @@ function toggleAI(active) {
             console.log('Initializing engine for the first time...');
             initEngine().then(ready => {
                 console.log('Engine initialization result:', ready);
-                if (ready && turn === window.aiColor) {
+                if (ready && window.gameState.turn === window.aiColor) {
                     console.log('AI active and it is AI\'s turn, requesting move.');
                     requestAIMove();
                 }
@@ -365,7 +365,7 @@ function toggleAI(active) {
                 console.error('Failed to initialize engine:', error);
                 alert('Failed to initialize the chess engine. Please try refreshing the page or check console for errors.');
             });
-        } else if (engineReady && turn === window.aiColor) {
+        } else if (engineReady && window.gameState.turn === window.aiColor) {
             console.log('Engine already ready and it is AI\'s turn, requesting AI move...');
             requestAIMove();
         }
@@ -381,10 +381,10 @@ function toggleAI(active) {
  */
 function setAIColor(color) {
     window.aiColor = color; // Update global
-    console.log(`AI color set to: ${color === PLAYER.WHITE ? 'White' : 'Black'}`);
+    console.log(`AI color set to: ${color === window.PLAYER.WHITE ? 'White' : 'Black'}`);
     
     // If it's already AI's turn, make a move
-    if (window.aiActive && engineReady && turn === window.aiColor && !gameState.gameOver) {
+    if (window.aiActive && engineReady && window.gameState.turn === window.aiColor && !window.gameState.gameOver) {
         console.log('AI color changed, and it is now AI\'s turn. Requesting move.');
         requestAIMove();
     }
@@ -395,8 +395,8 @@ function setAIColor(color) {
  * This should be called after a human makes a move
  */
 function checkAITurn() {
-    console.log(`checkAITurn called. AI Active: ${window.aiActive}, Engine Ready: ${engineReady}, Current Turn: ${turn}, AI Color: ${window.aiColor}, Game Over: ${gameState.gameOver}`);
-    if (window.aiActive && engineReady && turn === window.aiColor && !gameState.gameOver) {
+    console.log(`checkAITurn called. AI Active: ${window.aiActive}, Engine Ready: ${engineReady}, Current Turn: ${window.gameState.turn}, AI Color: ${window.aiColor}, Game Over: ${window.gameState.gameOver}`);
+    if (window.aiActive && engineReady && window.gameState.turn === window.aiColor && !window.gameState.gameOver) {
         console.log('It is AI\'s turn. Requesting move with a delay...');
         // Add a small delay to make the AI move feel more natural
         setTimeout(requestAIMove, 300);
