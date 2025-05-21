@@ -6,7 +6,12 @@ import { createChessboard, placePieces } from './board.js';
 import { initClock, resetClock } from './ui/clock.js';
 import { updateGameStatus } from './ui/status.js';
 import { updateMoveHistory } from './ui/history.js';
-import { resetGameState } from './gameState.js';
+import { 
+  getState, 
+  updateState, 
+  resetState,
+  PLAYER 
+} from './state.js';
 
 // Global settings for AI
 window.aiActive = false;
@@ -76,14 +81,14 @@ function setupEventListeners() {
  * Resets the game to initial state
  */
 function resetGame() {
-  // Reset game state
-  resetGameState();
+  // Reset game state using our centralized state management
+  resetState();
   
   // Reset the board (remove all pieces)
-  const squares = document.getElementsByClassName('square');
-  for (let i = 0; i < squares.length; i++) {
-    squares[i].textContent = '';
-    squares[i].classList.remove('highlight', 'movelight', 'takelight', 'dangerlight');
+  const state = getState();
+  for (let i = 0; i < state.squares.length; i++) {
+    state.squares[i].textContent = '';
+    state.squares[i].classList.remove('highlight', 'movelight', 'takelight', 'dangerlight');
   }
   
   // Place pieces in starting position
@@ -101,7 +106,8 @@ function resetGame() {
   console.log('Game reset to initial state.');
   
   // If AI is active and playing as white, trigger AI move
-  if (window.aiActive && window.aiColor === 0) {
+  const { ai } = getState();
+  if (ai.active && ai.color === PLAYER.WHITE) {
     // Wait a bit before AI makes first move
     setTimeout(() => {
       if (typeof window.checkAITurn === 'function') {
@@ -117,17 +123,21 @@ function resetGame() {
 function toggleAI() {
   const aiToggle = document.getElementById('ai-toggle');
   if (aiToggle) {
-    window.aiActive = aiToggle.checked;
-    console.log(`AI toggled: ${window.aiActive}`);
+    const aiActive = aiToggle.checked;
+    
+    // Update state
+    updateState({ 'ai.active': aiActive });
+    
+    console.log(`AI toggled: ${aiActive}`);
     
     // Update UI elements
     const aiControls = document.getElementById('ai-controls');
     if (aiControls) {
-      aiControls.style.display = window.aiActive ? 'block' : 'none';
+      aiControls.style.display = aiActive ? 'block' : 'none';
     }
     
     // Initialize engine if toggling on
-    if (window.aiActive && typeof window.initEngine === 'function') {
+    if (aiActive && typeof window.initEngine === 'function') {
       window.initEngine();
       
       // Check if it's AI's turn already
@@ -144,15 +154,18 @@ function toggleAI() {
 function updateAIDifficulty() {
   const difficultySlider = document.getElementById('ai-difficulty');
   if (difficultySlider) {
-    window.aiDifficulty = parseInt(difficultySlider.value);
+    const difficulty = parseInt(difficultySlider.value);
+    
+    // Update state
+    updateState({ 'ai.difficulty': difficulty });
     
     // Update difficulty display
     const difficultyDisplay = document.getElementById('difficulty-display');
     if (difficultyDisplay) {
       let difficultyText = 'Medium';
-      if (window.aiDifficulty <= 3) {
+      if (difficulty <= 3) {
         difficultyText = 'Easy';
-      } else if (window.aiDifficulty >= 12) {
+      } else if (difficulty >= 12) {
         difficultyText = 'Hard';
       }
       difficultyDisplay.textContent = difficultyText;
@@ -160,7 +173,7 @@ function updateAIDifficulty() {
     
     // Update engine setting if available
     if (typeof window.setAIDifficulty === 'function') {
-      window.setAIDifficulty(window.aiDifficulty);
+      window.setAIDifficulty(difficulty);
     }
   }
 }
@@ -171,11 +184,16 @@ function updateAIDifficulty() {
 function updateAIColor() {
   const colorSelect = document.getElementById('ai-color');
   if (colorSelect) {
-    window.aiColor = parseInt(colorSelect.value);
-    console.log(`AI color set to: ${window.aiColor === 0 ? 'White' : 'Black'}`);
+    const aiColor = parseInt(colorSelect.value);
+    
+    // Update state
+    updateState({ 'ai.color': aiColor });
+    
+    console.log(`AI color set to: ${aiColor === 0 ? 'White' : 'Black'}`);
     
     // Check if it's AI's turn now
-    if (window.aiActive && typeof window.checkAITurn === 'function') {
+    const state = getState();
+    if (state.ai.active && typeof window.checkAITurn === 'function') {
       window.checkAITurn();
     }
   }

@@ -2,40 +2,41 @@
  * status.js - Game status updates and end game detection
  */
 
-import { PLAYER, gameState, pieces } from '../gameState.js';
+import { getState, updateState, PLAYER, pieces, resetState } from '../state.js';
 import { stopClock } from './clock.js';
 
 /**
  * Updates the game status display
  */
 export function updateGameStatus() {
-  console.log('updateGameStatus: Start. Current turn:', gameState.turn === PLAYER.WHITE ? 'White' : 'Black');
+  const state = getState();
+  console.log('updateGameStatus: Start. Current turn:', state.turn === PLAYER.WHITE ? 'White' : 'Black');
   
   const gameStatus = document.getElementById('game-status');
   
-  if (gameState.gameOver) {
-    if (gameState.checkmate) {
-      const winner = gameState.turn === PLAYER.WHITE ? 'Black' : 'White';
+  if (state.gameOver) {
+    if (state.checkmate) {
+      const winner = state.turn === PLAYER.WHITE ? 'Black' : 'White';
       gameStatus.textContent = `Checkmate! ${winner} wins!`;
       showGameOverScreen(`${winner} wins by checkmate!`);
-    } else if (gameState.stalemate) {
+    } else if (state.stalemate) {
       gameStatus.textContent = 'Stalemate! The game is a draw.';
       showGameOverScreen('Draw by stalemate!');
-    } else if (gameState.insufficientMaterial) {
+    } else if (state.insufficientMaterial) {
       gameStatus.textContent = 'Draw by insufficient material!';
       showGameOverScreen('Draw by insufficient material!');
-    } else if (gameState.fiftyMoveRule) {
+    } else if (state.fiftyMoveRule) {
       gameStatus.textContent = 'Draw by fifty-move rule!';
       showGameOverScreen('Draw by fifty-move rule!');
-    } else if (gameState.threefoldRepetition) {
+    } else if (state.threefoldRepetition) {
       gameStatus.textContent = 'Draw by threefold repetition!';
       showGameOverScreen('Draw by threefold repetition!');
     }
   } else {
     // Update current player turn
-    const currentPlayer = gameState.turn === PLAYER.WHITE ? 'White' : 'Black';
+    const currentPlayer = state.turn === PLAYER.WHITE ? 'White' : 'Black';
     
-    if (gameState.check) {
+    if (state.check) {
       gameStatus.textContent = `${currentPlayer} to move. Check!`;
     } else {
       gameStatus.textContent = `${currentPlayer} to move.`;
@@ -44,16 +45,16 @@ export function updateGameStatus() {
   
   // Update check indicator
   if (pieces.white.checked) {
-    const whiteKingSquare = gameState.squares[pieces.white.kingRow * 8 + pieces.white.kingCol];
+    const whiteKingSquare = state.squares[pieces.white.kingRow * 8 + pieces.white.kingCol];
     whiteKingSquare.classList.add("dangerlight");
   }
   
   if (pieces.black.checked) {
-    const blackKingSquare = gameState.squares[pieces.black.kingRow * 8 + pieces.black.kingCol];
+    const blackKingSquare = state.squares[pieces.black.kingRow * 8 + pieces.black.kingCol];
     blackKingSquare.classList.add("dangerlight");
   }
   
-  console.log('updateGameStatus: End. Current turn:', gameState.turn === PLAYER.WHITE ? 'White' : 'Black');
+  console.log('updateGameStatus: End. Current turn:', state.turn === PLAYER.WHITE ? 'White' : 'Black');
 }
 
 /**
@@ -130,14 +131,19 @@ export function showGameOverScreen(message) {
  * Checks for end of game conditions (checkmate, stalemate, etc.)
  */
 export function checkForEndOfGame() {
+  // Get current state
+  const state = getState();
+  
   // Reset game state flags
-  gameState.checkmate = false;
-  gameState.stalemate = false;
+  updateState({
+    checkmate: false,
+    stalemate: false
+  });
   
   // Check if the current player is in check
-  const currentPlayerPieces = gameState.turn === PLAYER.WHITE ? pieces.white : pieces.black;
+  const currentPlayerPieces = state.turn === PLAYER.WHITE ? pieces.white : pieces.black;
   const isInCheck = currentPlayerPieces.checked;
-  gameState.check = isInCheck;
+  updateState({ check: isInCheck });
   
   // Check if there are any legal moves
   const hasLegalMoves = checkForLegalMoves();
@@ -145,11 +151,15 @@ export function checkForEndOfGame() {
   // If there are no legal moves, it's either checkmate or stalemate
   if (!hasLegalMoves) {
     if (isInCheck) {
-      gameState.checkmate = true;
-      gameState.gameOver = true;
+      updateState({ 
+        checkmate: true,
+        gameOver: true
+      });
     } else {
-      gameState.stalemate = true;
-      gameState.gameOver = true;
+      updateState({ 
+        stalemate: true,
+        gameOver: true
+      });
     }
   }
   
@@ -180,16 +190,8 @@ function checkForLegalMoves() {
  * Resets the game to the initial state
  */
 export function resetGame() {
-  // Reset game state variables
-  gameState.turn = PLAYER.WHITE;
-  window.turn = PLAYER.WHITE; // Keep window.turn in sync
-  gameState.gameOver = false;
-  gameState.check = false;
-  gameState.checkmate = false;
-  gameState.stalemate = false;
-  
-  // Reset the board
-  // This would call functions to clear and reinitialize the board
+  // Use our centralized reset function
+  resetState();
   
   // Update the UI
   updateGameStatus();

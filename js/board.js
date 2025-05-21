@@ -2,7 +2,7 @@
  * board.js - Chess board creation and management
  */
 
-import { PLAYER, pieces, gameState } from './gameState.js';
+import { getState, updateState, pieces } from './state.js';
 import { squareClick } from './moves/moveHandler.js';
 
 /**
@@ -10,7 +10,7 @@ import { squareClick } from './moves/moveHandler.js';
  */
 export function createChessboard() {
   const board = document.getElementById("chessboard");
-  gameState.squares = [];
+  const squares = [];
   
   for (let row = 0; row < 8; row++) {
     for (let col = 0; col < 8; col++) {
@@ -21,16 +21,20 @@ export function createChessboard() {
       square.dataset.col = col;
       square.addEventListener("click", () => squareClick(square));
       board.appendChild(square);
-      gameState.squares.push(square);
+      squares.push(square);
     }
   }
+  
+  // Update state with the squares
+  updateState({ squares: squares });
 }
 
 /**
  * Places the initial pieces on the board
  */
 export function placePieces() {
-  const allSquares = gameState.squares;
+  const state = getState();
+  const allSquares = state.squares;
   
   const initialSetup = [
     ["rook", "knight", "bishop", "queen", "king", "bishop", "knight", "rook"],
@@ -112,23 +116,29 @@ export function highlightInvalidMove(square) {
  * Cleans up after a move is made
  */
 export function cleanupAfterMove() {
-  if (!window.selectedSquare) return;
+  const state = getState();
+  const { selectedSquare } = state;
   
-  window.selectedSquare.classList.remove("highlight");
+  if (!selectedSquare) return;
+  
+  selectedSquare.classList.remove("highlight");
+  
+  // Remove highlighting from all squares
   for (let i = 0; i < 64; i++) {
-    gameState.squares[i].classList.remove("movelight");
-    gameState.squares[i].classList.remove("takelight");
+    state.squares[i].classList.remove("movelight");
+    state.squares[i].classList.remove("takelight");
   }
   
   // Remove dangerlight from both kings if they are no longer in check
   if (!pieces.white.checked) {
-    const whiteKingSquare = gameState.squares[pieces.white.kingRow * 8 + pieces.white.kingCol];
+    const whiteKingSquare = state.squares[pieces.white.kingRow * 8 + pieces.white.kingCol];
     whiteKingSquare.classList.remove("dangerlight");
   }
   if (!pieces.black.checked) {
-    const blackKingSquare = gameState.squares[pieces.black.kingRow * 8 + pieces.black.kingCol];
+    const blackKingSquare = state.squares[pieces.black.kingRow * 8 + pieces.black.kingCol];
     blackKingSquare.classList.remove("dangerlight");
   }
   
-  window.selectedSquare = null;
+  // Clear selected square in state
+  updateState({ selectedSquare: null });
 } 
