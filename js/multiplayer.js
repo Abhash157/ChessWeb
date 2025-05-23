@@ -346,6 +346,13 @@ function startMultiplayerGame() {
   // Update UI
   updateMultiplayerStatus(`Game started! You are playing as ${MP.playerColor === PLAYER.WHITE ? 'White' : 'Black'}`);
   
+  // Hide the multiplayer overlay to reveal the game board
+  const mpOverlay = document.getElementById('mp-overlay');
+  if (mpOverlay) {
+    mpOverlay.style.display = 'none';
+    console.log('Multiplayer overlay hidden, game is starting');
+  }
+  
   // Reset board and set up for a new game
   resetBoard();
   resetClock();
