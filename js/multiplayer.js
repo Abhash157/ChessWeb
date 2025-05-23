@@ -3,8 +3,13 @@
  * Handles online gameplay using Socket.io
  */
 
-// Socket.io server URL
-const SOCKET_SERVER_URL = 'http://localhost:3000';
+// Socket.io server URL - can be overridden by custom settings
+const DEFAULT_SOCKET_SERVER_URL = 'http://localhost:3000';
+
+// Function to get the current server URL (custom or default)
+function getServerUrl() {
+  return localStorage.getItem('chessServerUrl') || DEFAULT_SOCKET_SERVER_URL;
+}
 
 // Multiplayer State
 const MP = {
@@ -62,26 +67,38 @@ function initMultiplayer() {
 }
 
 /**
- * Connect to the multiplayer server
+ * Connect to the WebSocket server
+ * @param {string} customServerUrl - Optional custom server URL
  */
-function connectToServer() {
+function connectToServer(customServerUrl) {
   try {
-    // Connect to the Socket.IO server with more permissive options
-    MP.socket = io(SOCKET_SERVER_URL, {
+    // Allow custom server URL or use stored preference, fallback to default
+    let serverUrl = customServerUrl || getServerUrl();
+    
+    console.log(`Connecting to WebSocket server at ${serverUrl}...`);
+    updateMultiplayerStatus(`Connecting to server at ${serverUrl}...`);
+    
+    // Store the server URL for future use
+    if (customServerUrl) {
+      localStorage.setItem('chessServerUrl', customServerUrl);
+    }
+    
+    MP.socket = io(serverUrl, {
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 5,
-      timeout: 10000,
-      forceNew: true
+      timeout: 20000, // Increased timeout
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000
     });
     
-    // Set up event listeners
+    // Set up connection event handlers
     setupSocketListeners();
     
-    console.log('Connected to multiplayer server');
-    updateMultiplayerStatus('Connected to server');
+    return true;
   } catch (error) {
-    console.error('Failed to connect to server:', error);
-    showConnectionError('Failed to connect to server');
+    console.error('Error connecting to server:', error);
+    showConnectionError(`Failed to connect to multiplayer server: ${error.message}`);
+    return false;
   }
 }
 
@@ -115,6 +132,8 @@ function setupSocketListeners() {
           <p>Having trouble connecting? Your browser might be blocking WebSockets.</p>
           <p>You can:</p>
           <ul style="text-align: left; margin-left: 20px;">
+            <li>Check your server address in Server Settings</li>
+            <li>Make sure both devices are on the same network</li>
             <li>Disable ad blockers for this page</li>
             <li>Try a different browser</li>
             <li>Use the local multiplayer option below</li>
@@ -757,6 +776,17 @@ function showMultiplayerUI() {
             <label for="player-name">Your Name:</label>
             <input type="text" id="player-name" value="Player" maxlength="15">
           </div>
+          <div class="mp-option-group">
+            <details class="server-config">
+              <summary>Server Settings</summary>
+              <div class="server-settings-content">
+                <label for="server-address">Server Address:</label>
+                <input type="text" id="server-address" placeholder="e.g., http://192.168.1.5:3000">
+                <p class="server-help">Enter the network URL shown in your server console</p>
+                <button id="save-server-btn" class="mp-btn mp-small-btn">Save Server</button>
+              </div>
+            </details>
+          </div>
           <button id="create-room-btn" class="mp-btn">Create New Game</button>
           <div class="mp-divider">OR</div>
           <div class="mp-option-group">
@@ -790,6 +820,47 @@ function showMultiplayerUI() {
     document.getElementById('mp-cancel-btn').addEventListener('click', () => {
       // Clean up and return to main game
       leaveMultiplayerMode();
+    });
+    
+    // Initialize server address input with stored value if available
+    const serverAddressInput = document.getElementById('server-address');
+    const savedServerUrl = getServerUrl();
+    serverAddressInput.value = savedServerUrl;
+    
+    // Also display the current server in the status
+    updateMultiplayerStatus(`Ready to connect to server at ${savedServerUrl}`);
+    
+    // Add event listener for save server button
+    document.getElementById('save-server-btn').addEventListener('click', () => {
+      const serverUrl = serverAddressInput.value.trim();
+      if (serverUrl) {
+        // Validate URL format
+        try {
+          // Simple validation - just check if it has http/https and a domain
+          if (!serverUrl.match(/^https?:\/\/.+/)) {
+            throw new Error('Invalid URL format');
+          }
+          
+          // Save the server URL to localStorage
+          localStorage.setItem('chessServerUrl', serverUrl);
+          
+          // Reconnect to new server
+          if (MP.socket) {
+            MP.socket.disconnect();
+          }
+          
+          // Show status message
+          updateMultiplayerStatus(`Connecting to server at ${serverUrl}...`);
+          
+          // Connect to the new server
+          setTimeout(() => {
+            connectToServer(serverUrl);
+          }, 500);
+          
+        } catch (error) {
+          updateMultiplayerStatus(`Error: ${error.message}. Use format http://IP:PORT`);
+        }
+      }
     });
   } else {
     mpOverlay.style.display = 'flex';
@@ -833,6 +904,34 @@ function showMultiplayerUI() {
         display: flex;
         flex-direction: column;
         gap: 0.5rem;
+      }
+      
+      .server-config summary {
+        cursor: pointer;
+        padding: 8px;
+        background: #313244;
+        border-radius: 5px;
+        margin-bottom: 10px;
+      }
+      
+      .server-settings-content {
+        padding: 10px;
+        background: #11111b;
+        border-radius: 5px;
+        margin-top: 5px;
+        margin-bottom: 10px;
+      }
+      
+      .server-help {
+        font-size: 0.8rem;
+        opacity: 0.8;
+        margin: 5px 0;
+      }
+      
+      .mp-small-btn {
+        padding: 5px 10px;
+        font-size: 0.9rem;
+        margin-top: 5px;
       }
       
       .mp-btn {

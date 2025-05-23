@@ -19,6 +19,70 @@ const server = http.createServer(app);
 // Enable CORS
 app.use(cors());
 
+// Serve static files from the root directory
+app.use(express.static(__dirname + '/..'));
+
+// Serve a simple status page at the root URL
+app.get('/', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Chess WebSocket Server</title>
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          max-width: 800px;
+          margin: 0 auto;
+          padding: 20px;
+          line-height: 1.6;
+          color: #333;
+        }
+        h1 { color: #2c3e50; }
+        .status { 
+          background: #e8f5e9;
+          padding: 15px;
+          border-radius: 5px;
+          border-left: 5px solid #4caf50;
+        }
+        .info {
+          background: #e3f2fd;
+          padding: 15px;
+          border-radius: 5px;
+          border-left: 5px solid #2196f3;
+          margin-top: 20px;
+        }
+        code {
+          background: #f5f5f5;
+          padding: 2px 5px;
+          border-radius: 3px;
+        }
+      </style>
+    </head>
+    <body>
+      <h1>Chess WebSocket Server</h1>
+      <div class="status">
+        <h2>✅ Server Status: Running</h2>
+        <p>The WebSocket server is running and ready to accept connections.</p>
+      </div>
+      <div class="info">
+        <h2>📋 Connection Information:</h2>
+        <p>This server is running Socket.IO for real-time multiplayer chess games.</p>
+        <p><strong>Local URL:</strong> <code>http://localhost:${PORT}</code></p>
+        <p><strong>Network URL:</strong> <code>http://${getLocalIpAddress()}:${PORT}</code></p>
+        <h3>⚠️ Important:</h3>
+        <p>Don't try to use this page directly. Instead:</p>
+        <ol>
+          <li>Open the Chess application in your browser</li>
+          <li>Go to multiplayer mode</li>
+          <li>In server settings, enter: <code>http://${getLocalIpAddress()}:${PORT}</code></li>
+        </ol>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
 // Configure Socket.IO with more permissive settings to avoid being blocked
 const io = new Server(server, {
   cors: {
@@ -192,8 +256,40 @@ function generateRoomId() {
 // Define a port
 const PORT = process.env.PORT || 3000;
 
-// Start the server
-server.listen(PORT, () => {
+// Get local IP address to display for network connections
+const { networkInterfaces } = require('os');
+
+function getLocalIpAddress() {
+  const nets = networkInterfaces();
+  const results = {};
+
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name]) {
+      // Skip over non-IPv4 and internal (i.e. 127.0.0.1) addresses
+      if (net.family === 'IPv4' && !net.internal) {
+        if (!results[name]) {
+          results[name] = [];
+        }
+        results[name].push(net.address);
+      }
+    }
+  }
+  
+  // Find the first external IPv4 address
+  for (const name of Object.keys(results)) {
+    if (results[name].length > 0) {
+      return results[name][0];
+    }
+  }
+  
+  return 'localhost';
+}
+
+// Start the server on all network interfaces (0.0.0.0)
+server.listen(PORT, '0.0.0.0', () => {
+  const localIp = getLocalIpAddress();
   console.log(`WebSocket server running on port ${PORT}`);
-  console.log(`http://localhost:${PORT}`);
+  console.log(`Local URL: http://localhost:${PORT}`);
+  console.log(`Network URL: http://${localIp}:${PORT}`);
+  console.log(`\nIMPORTANT: Other devices should connect to: http://${localIp}:${PORT}`);
 });
