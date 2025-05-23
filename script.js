@@ -1544,6 +1544,53 @@ async function handlePieceMove(fromSquare, toSquare, pieceColor) {
     updateCapturedPieces();
     updateMoveHistory(); 
     cleanupAfterMove(); 
+    
+    // Send move to opponent if in multiplayer mode
+    console.log('Checking multiplayer conditions:', {
+        currentGameMode: currentGameMode,
+        GAME_MODE_ONLINE: GAME_MODE.ONLINE,
+        isMatchingMode: currentGameMode === GAME_MODE.ONLINE,
+        MP: window.MP ? 'exists' : 'undefined',
+        onlineActive: window.MP ? window.MP.onlineModeActive : 'N/A',
+        socketConnected: window.MP && window.MP.socket ? window.MP.socket.connected : 'N/A',
+        playerColor: window.MP ? window.MP.playerColor : 'N/A',
+        pieceColor: pieceColor,
+        sendMoveFunction: typeof window.sendMove === 'function' ? 'exists' : 'undefined'
+    });
+    
+    if (currentGameMode === GAME_MODE.ONLINE && window.MP && window.MP.onlineModeActive && window.MP.socket) {
+        console.log('Sending move to multiplayer system:', moveData);
+        // Make sure we're only sending our own moves, not reflecting opponent's moves
+        if ((window.MP.playerColor === PLAYER.WHITE && pieceColor === PLAYER.WHITE) ||
+            (window.MP.playerColor === PLAYER.BLACK && pieceColor === PLAYER.BLACK)) {
+            try {
+                if (typeof window.sendMove !== 'function') {
+                    console.error('sendMove function not available! Attempting to use fallback.');
+                    if (window.MP.socket && window.MP.socket.emit) {
+                        window.MP.socket.emit('make_move', {
+                            roomId: window.MP.roomId,
+                            move: `${moveData.pieceMovedOriginal},${moveData.from.row},${moveData.from.col},${moveData.to.row},${moveData.to.col}`
+                        });
+                        console.log('Used socket.emit fallback to send move');
+                    } else {
+                        console.error('No fallback available for sending moves!');
+                    }
+                } else {
+                    // Call the multiplayer module's sendMove function
+                    window.sendMove({
+                        piece: moveData.pieceMovedOriginal,
+                        from: moveData.from,
+                        to: moveData.to
+                    });
+                    console.log('Move sent to multiplayer server via window.sendMove');
+                }
+            } catch (error) {
+                console.error('Error sending move to multiplayer server:', error);
+            }
+        } else {
+            console.log('Not sending move - opponent\'s move reflection');
+        }
+    }
 
     if (!moveData.wasPromotion) {
       checkForEndOfGame(); // This calls updateGameStatus internally

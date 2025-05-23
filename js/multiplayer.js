@@ -3,6 +3,9 @@
  * Handles online gameplay using Socket.io
  */
 
+// Socket.io server URL
+const SOCKET_SERVER_URL = 'http://localhost:3000';
+
 // Multiplayer State
 const MP = {
   socket: null,
@@ -27,6 +30,10 @@ function initMultiplayer() {
   try {
     console.log('Initializing multiplayer mode...');
     
+    // Make multiplayer functions globally available to script.js
+    window.sendMove = sendMove;
+    console.log('Exposed sendMove function globally');
+    
     // Load Socket.io library dynamically
     const script = document.createElement('script');
     script.src = 'https://cdn.socket.io/4.6.0/socket.io.min.js';
@@ -43,6 +50,9 @@ function initMultiplayer() {
     };
     
     document.head.appendChild(script);
+    
+    // Show multiplayer UI once Socket.io is loaded
+    showMultiplayerUI();
     return true;
   } catch (error) {
     console.error('Failed to initialize multiplayer:', error);
@@ -56,104 +66,165 @@ function initMultiplayer() {
  */
 function connectToServer() {
   try {
-    // We'd use our actual server URL in production
-    // For demo purposes, we'll use a mock implementation
-    console.log('Connecting to multiplayer server...');
-    mockSocketImplementation();
+    // Connect to the Socket.IO server with more permissive options
+    MP.socket = io(SOCKET_SERVER_URL, {
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 5,
+      timeout: 10000,
+      forceNew: true
+    });
     
-    // Show the multiplayer UI elements
-    showMultiplayerUI();
+    // Set up event listeners
+    setupSocketListeners();
+    
+    console.log('Connected to multiplayer server');
+    updateMultiplayerStatus('Connected to server');
   } catch (error) {
     console.error('Failed to connect to server:', error);
-    showConnectionError('Failed to connect to multiplayer server');
+    showConnectionError('Failed to connect to server');
   }
 }
 
 /**
- * Mock implementation of Socket.io for demonstration
- * In a real implementation, this would connect to an actual server
+ * Set up Socket.IO event listeners
  */
-function mockSocketImplementation() {
-  // Create a mock socket object
-  MP.socket = {
-    id: 'player_' + Math.random().toString(36).substring(2, 9),
-    connected: true,
+function setupSocketListeners() {
+  if (!MP.socket) return;
+  
+  // Connection events
+  MP.socket.on('connect', () => {
+    console.log('Connected to Socket.IO server with ID:', MP.socket.id);
+    MP.playerId = MP.socket.id;
+    MP.onlineModeActive = true;
+  });
+  
+  MP.socket.on('disconnect', () => {
+    console.log('Disconnected from Socket.IO server');
+    showConnectionError('Disconnected from server');
+  });
+  
+  MP.socket.on('connect_error', (error) => {
+    console.error('Socket connection error:', error);
+    showConnectionError('Connection error: ' + error.message);
     
-    // Mock emit function
-    emit: function(event, data, callback) {
-      console.log(`[Socket] Emitting event: ${event}`, data);
+    // Add a fallback option for users experiencing connection issues
+    const mpStatus = document.getElementById('mp-status');
+    if (mpStatus) {
+      mpStatus.innerHTML += `
+        <div class="warning-message" style="margin-top: 15px;">
+          <p>Having trouble connecting? Your browser might be blocking WebSockets.</p>
+          <p>You can:</p>
+          <ul style="text-align: left; margin-left: 20px;">
+            <li>Disable ad blockers for this page</li>
+            <li>Try a different browser</li>
+            <li>Use the local multiplayer option below</li>
+          </ul>
+          <button id="mp-local-fallback" class="mp-btn">Use Local Multiplayer</button>
+        </div>
+      `;
       
-      // Simulate server responses
-      setTimeout(() => {
-        switch(event) {
-          case 'create_room':
-            MP.roomId = 'room_' + Math.random().toString(36).substring(2, 7);
-            MP.isHost = true;
-            MP.playerColor = PLAYER.WHITE; // Host plays as white
-            MP.waitingForOpponent = true;
-            if (callback) callback({ success: true, roomId: MP.roomId });
-            
-            // Simulate opponent joining after a delay
-            setTimeout(() => {
-              if (MP.waitingForOpponent) {
-                handleOpponentJoined({
-                  playerId: 'opponent_' + Math.random().toString(36).substring(2, 9),
-                  name: 'Opponent'
-                });
-              }
-            }, 5000);
-            break;
-            
-          case 'join_room':
-            if (data.roomId) {
-              MP.roomId = data.roomId;
-              MP.isHost = false;
-              MP.playerColor = PLAYER.BLACK; // Joiner plays as black
-              MP.opponentConnected = true;
-              if (callback) callback({ success: true });
-              
-              // Notify the UI that we've joined
-              handleRoomJoined({
-                hostId: 'host_' + Math.random().toString(36).substring(2, 9),
-                hostName: 'Host'
-              });
-            } else {
-              if (callback) callback({ success: false, error: 'Invalid room ID' });
-            }
-            break;
-            
-          case 'make_move':
-            // Simulate the move being sent to the opponent
-            setTimeout(() => {
-              // This would normally come from the actual opponent
-              handleOpponentMove(data);
-            }, 500);
-            break;
-        }
-      }, 300);
-    },
+      // Add event listener for the local fallback button
+      document.getElementById('mp-local-fallback').addEventListener('click', () => {
+        useLocalMultiplayerFallback();
+      });
+    }
+  });
+  
+  // Game events
+  MP.socket.on('opponent_joined', (data) => {
+    console.log('Opponent joined:', data);
+    handleOpponentJoined(data);
+  });
+  
+  /**
+   * Switch to local multiplayer fallback when Socket.IO connection fails
+   */
+  window.useLocalMultiplayerFallback = function() {
+    console.log('Switching to local multiplayer fallback');
     
-    // Mock on function for event listeners
-    on: function(event, callback) {
-      console.log(`[Socket] Listening for event: ${event}`);
-      // Store the callback to manually trigger it in our mock implementation
-      this[`_on_${event}`] = callback;
-    },
+    // Clean up socket connection if it exists
+    if (MP.socket) {
+      MP.socket.disconnect();
+      MP.socket = null;
+    }
     
-    // Mock disconnect
-    disconnect: function() {
-      this.connected = false;
-      console.log('[Socket] Disconnected from server');
+    // Reset multiplayer state
+    MP.roomId = null;
+    MP.playerId = null;
+    MP.isHost = false;
+    MP.playerColor = null;
+    MP.opponentConnected = false;
+    MP.waitingForOpponent = false;
+    MP.gameStarted = false;
+    MP.onlineModeActive = false;
+    
+    // Load the local multiplayer script if not already loaded
+    if (!window.LMP) {
+      const script = document.createElement('script');
+      script.src = 'js/localMultiplayer.js';
+      script.onload = () => {
+        console.log('Local multiplayer script loaded');
+        initLocalMultiplayer();
+      };
+      script.onerror = (error) => {
+        console.error('Error loading local multiplayer script:', error);
+        showConnectionError('Failed to load local multiplayer functionality');
+      };
+      document.head.appendChild(script);
+    } else {
+      // If script is already loaded, just initialize
+      initLocalMultiplayer();
     }
   };
   
-  // Store the player ID
-  MP.playerId = MP.socket.id;
+  // Listen for opponent's move
+  MP.socket.on('opponent_move', (move) => {
+    console.log('Received opponent_move event from server:', move);
+    
+    // Make sure game is marked as started - may be redundant but provides a safeguard
+    if (!MP.gameStarted) {
+      console.log('Game not marked as started, but move received - forcing game start');
+      MP.gameStarted = true;
+      MP.onlineModeActive = true;
+      
+      // Set game mode to online
+      window.currentGameMode = window.GAME_MODE ? window.GAME_MODE.ONLINE : 'online';
+      console.log('Forced game mode to:', window.currentGameMode);
+      
+      // Initialize the board if needed
+      if (document.querySelectorAll('#chessboard .square').length === 0) {
+        console.log('Board not initialized, initializing now');
+        resetBoard();
+      }
+    }
+    
+    // Process the move
+    handleOpponentMove(move);
+  });
   
-  // Set the multiplayer flag
-  MP.onlineModeActive = true;
-  
-  console.log('Socket connection established (mock)');
+  MP.socket.on('opponent_disconnected', (data) => {
+    console.log('Opponent disconnected:', data);
+    showConnectionError(data.message || 'Opponent disconnected');
+    
+    // Reset game state
+    MP.opponentConnected = false;
+    MP.gameStarted = false;
+    
+    // Show a reconnect button
+    const mpStatus = document.getElementById('mp-status');
+    if (mpStatus) {
+      mpStatus.innerHTML = `
+        <div class="error-message">${data.message || 'Opponent disconnected'}</div>
+        <button id="mp-reconnect-btn" class="mp-btn">Return to Menu</button>
+      `;
+      
+      // Add event listener to reconnect button
+      document.getElementById('mp-reconnect-btn').addEventListener('click', () => {
+        leaveMultiplayerMode();
+        showMultiplayerUI();
+      });
+    }
+  });
 }
 
 /**
@@ -205,9 +276,37 @@ function joinRoom(roomId) {
       MP.roomId = roomId;
       MP.isHost = false;
       MP.playerColor = PLAYER.BLACK; // Joiner plays as black
+      MP.opponentName = response.hostName || 'Host';
+      MP.opponentConnected = true;
+      
+      // CRITICAL: Set game to started state immediately
+      MP.gameStarted = true;
+      MP.onlineModeActive = true;
+      
+      // Set game mode to online 
+      if (window.GAME_MODE && typeof window.GAME_MODE.ONLINE !== 'undefined') {
+        console.log('Setting game mode to ONLINE for joiner');
+        window.currentGameMode = window.GAME_MODE.ONLINE;
+      } else {
+        console.log('Setting game mode to "online" string for joiner');
+        window.currentGameMode = 'online';
+      }
       
       // Update UI to show connection status
-      updateMultiplayerStatus('Connected! Waiting for game to start...');
+      updateMultiplayerStatus(`Connected to ${MP.opponentName}'s game! You are playing as Black`);
+      
+      // Hide the multiplayer overlay immediately
+      const mpOverlay = document.getElementById('mp-overlay');
+      if (mpOverlay) {
+        mpOverlay.style.display = 'none';
+      }
+      
+      // Initialize the game board
+      console.log('Initializing game board for joiner');
+      resetBoard();
+      
+      // Disable board interaction since White goes first
+      disableBoardInteraction();
     } else {
       showConnectionError('Failed to join room: ' + (response.error || 'Unknown error'));
     }
@@ -219,14 +318,41 @@ function joinRoom(roomId) {
  * @param {Object} moveData - Data about the move
  */
 function sendMove(moveData) {
-  if (!MP.socket || !MP.gameStarted) return;
+  if (!MP.roomId || !MP.gameStarted || !MP.socket) {
+    console.error('Cannot send move: multiplayer not ready', {
+      roomId: MP.roomId,
+      gameStarted: MP.gameStarted,
+      socketConnected: MP.socket ? MP.socket.connected : false
+    });
+    return;
+  }
   
+  console.log('Sending move to opponent:', moveData);
+  
+  // Create a simple move format: piece,fromRow,fromCol,toRow,toCol
+  const { from, to, piece } = moveData;
+  const fromRow = from.row;
+  const fromCol = from.col;
+  const toRow = to.row;
+  const toCol = to.col;
+  
+  // Create a simple move string that's easy to parse
+  const moveString = `${piece},${fromRow},${fromCol},${toRow},${toCol}`;
+  
+  // Send the move to the server
   MP.socket.emit('make_move', {
     roomId: MP.roomId,
-    move: moveData
+    move: moveString
   });
   
-  console.log('Move sent to opponent:', moveData);
+  console.log(`Move sent to server: ${moveString}`);
+  
+  // Update local turn status - switch to opponent's turn
+  window.turn = MP.playerColor === PLAYER.WHITE ? PLAYER.BLACK : PLAYER.WHITE;
+  disableBoardInteraction(); // Disable board until opponent moves
+  
+  // Update UI to show waiting for opponent
+  updateMultiplayerStatus(`Waiting for ${MP.opponentName} to make a move...`);
 }
 
 /**
@@ -240,6 +366,12 @@ function handleOpponentJoined(data) {
   
   console.log('Opponent joined:', data);
   updateMultiplayerStatus(`${MP.opponentName} has joined the game!`);
+  
+  // Hide the multiplayer overlay immediately for the host
+  const mpOverlay = document.getElementById('mp-overlay');
+  if (mpOverlay) {
+    mpOverlay.style.display = 'none';
+  }
   
   // Start the game after a short delay
   setTimeout(startMultiplayerGame, 1500);
@@ -262,64 +394,161 @@ function handleRoomJoined(data) {
 
 /**
  * Handle receiving a move from the opponent
- * @param {Object} moveData - Data about the move
+ * @param {string} moveString - Move in format 'piece,fromRow,fromCol,toRow,toCol'
  */
-function handleOpponentMove(moveData) {
-  if (!MP.gameStarted) return;
+function handleOpponentMove(moveString) {
+  if (!MP.gameStarted) {
+    console.error('Received opponent move but game not started!');
+    return;
+  }
   
-  console.log('Received move from opponent:', moveData);
-  MP.lastReceivedMove = moveData;
+  console.log('Received move from opponent:', moveString);
   
-  // Apply the opponent's move to the local board
-  applyOpponentMove(moveData);
+  try {
+    // Parse the move string
+    const [piece, fromRow, fromCol, toRow, toCol] = moveString.split(',');
+    
+    // Convert to numbers
+    const moveData = {
+      piece: piece,
+      from: { row: parseInt(fromRow), col: parseInt(fromCol) },
+      to: { row: parseInt(toRow), col: parseInt(toCol) }
+    };
+    
+    console.log('Parsed opponent move:', moveData);
+    
+    // Save the move for reference
+    MP.lastReceivedMove = moveData;
+    
+    // Get the chessboard
+    const board = document.getElementById('chessboard');
+    if (!board) {
+      console.error('Chessboard not found in DOM');
+      return;
+    }
+    
+    // Get the squares from the DOM
+    const fromSquare = board.querySelector(`.square[data-row="${fromRow}"][data-col="${fromCol}"]`);
+    const toSquare = board.querySelector(`.square[data-row="${toRow}"][data-col="${toCol}"]`);
+    
+    console.log('Opponent move squares:', {
+      from: fromSquare,
+      to: toSquare,
+      fromCoords: `${fromRow},${fromCol}`,
+      toCoords: `${toRow},${toCol}`
+    });
+    
+    if (!fromSquare || !toSquare) {
+      console.error('Could not find squares for opponent move:', {
+        fromRow, fromCol, toRow, toCol,
+        fromSquare, toSquare
+      });
+      return;
+    }
+    
+    // Apply the opponent's move to the local board
+    const opponentColor = MP.playerColor === PLAYER.WHITE ? PLAYER.BLACK : PLAYER.WHITE;
+    console.log(`Applying opponent move directly with color: ${opponentColor}`);
+    
+    // Disable board interaction while move is processing
+    disableBoardInteraction();
+    
+    // Use the global handlePieceMove function
+    window.handlePieceMove(fromSquare, toSquare, opponentColor)
+      .then(() => {
+        console.log('Opponent move applied successfully!');
+        
+        // Update turn status to player's turn
+        window.turn = MP.playerColor;
+        
+        // Enable interaction so the player can make their move
+        enableBoardInteraction();
+        
+        // Update UI
+        updateMultiplayerStatus(`Your turn`);
+      })
+      .catch(err => {
+        console.error('Error executing opponent move:', err);
+        alert('Error applying opponent move. Please try reloading the page.');
+      });
+  } catch (e) {
+    console.error('Error processing opponent move:', e);
+  }
 }
 
 /**
  * Apply a move received from the opponent to the local board
- * @param {Object} moveData - Data about the move
+ * @param {Object} moveData - Data about the move in simplified format
  */
 function applyOpponentMove(moveData) {
-  const { fromIndex, toIndex, promotion } = moveData;
+  console.log('Applying opponent move:', moveData);
   
-  // Get the corresponding squares
-  const fromSquare = squares[fromIndex];
-  const toSquare = squares[toIndex];
-  
-  console.log(`Applying opponent move: ${fromIndex} -> ${toIndex}`);
-  
-  // Store the move details for animation
-  const pieceToMove = fromSquare.textContent;
-  
-  // If this is a promotion move, we'll need to handle that specially
-  const isPromotion = promotion ? true : false;
-  
-  // Call the existing move functions with these squares
-  const moveFunction = async () => {
-    // Animate the piece movement
-    await animatePieceMovement(fromSquare, toSquare, pieceToMove);
+  try {
+    // Extract move data - ensure they're numbers with parseInt
+    const fromRow = parseInt(moveData.from.row);
+    const fromCol = parseInt(moveData.from.col);
+    const toRow = parseInt(moveData.to.row);
+    const toCol = parseInt(moveData.to.col);
     
-    // Update board state
-    toSquare.textContent = isPromotion ? getPromotionPiece(promotion, MP.playerColor === PLAYER.WHITE ? PLAYER.BLACK : PLAYER.WHITE) : pieceToMove;
-    fromSquare.textContent = '';
+    // Get the current state
+    const state = getState();
+    const squares = state.squares;
     
-    // Handle special moves like castling, capturing, etc.
-    // The main game logic should handle this
+    // Get the corresponding squares using the correct indices
+    const fromIndex = fromRow * 8 + fromCol;
+    const toIndex = toRow * 8 + toCol;
+    const fromSquare = squares[fromIndex];
+    const toSquare = squares[toIndex];
     
-    // Switch turns
-    window.turn = MP.playerColor;
-    updateGameStatus();
+    console.log(`Move indexes: from=${fromIndex} (${fromRow},${fromCol}), to=${toIndex} (${toRow},${toCol})`);
+    console.log('From square:', fromSquare);
+    console.log('To square:', toSquare);
     
-    // If it's now the local player's turn, enable board interaction
-    if (window.turn === MP.playerColor) {
-      enableBoardInteraction();
+    if (!fromSquare || !toSquare) {
+      console.error('Invalid squares for move:', fromRow, fromCol, toRow, toCol);
+      return;
     }
-  };
-  
-  // Execute the move
-  moveFunction();
+    
+    // Determine the opponent's color (opposite of player's color)
+    const opponentColor = MP.playerColor === PLAYER.WHITE ? PLAYER.BLACK : PLAYER.WHITE;
+    
+    console.log(`Applying opponent move from (${fromRow},${fromCol}) to (${toRow},${toCol})`);
+    console.log(`Opponent color: ${opponentColor}`);
+    
+    // Disable board interaction while opponent's move is being processed
+    disableBoardInteraction();
+    
+    // Call the global handlePieceMove function with the correct parameters
+    // Make sure to pass the correct color of the piece being moved (opponent's color)
+    window.handlePieceMove(fromSquare, toSquare, opponentColor)
+      .then(() => {
+        console.log('Opponent move applied successfully');
+        
+        // Make sure the turn is set to the player's color after the move completes
+        window.turn = MP.playerColor;
+        
+        // Enable board interaction after the move is completed
+        enableBoardInteraction();
+        
+        // Update UI to show it's the player's turn
+        updateMultiplayerStatus('Your turn');
+      })
+      .catch(err => {
+        console.error('Error during handlePieceMove execution:', err);
+        showConnectionError('Error applying opponent move');
+        enableBoardInteraction(); // Ensure board isn't left disabled
+      });
+    
+    console.log('Opponent move processing initiated');
+  } catch (err) {
+    console.error('Error in applyOpponentMove function:', err);
+    showConnectionError('Failed to process opponent move');
+    enableBoardInteraction(); // Ensure board isn't left disabled
+  }
 }
 
 /**
+{{ ... }}
  * Get the promotion piece based on the selected piece type
  * @param {string} pieceType - The type of piece to promote to
  * @param {number} playerColor - The color of the player
@@ -341,17 +570,62 @@ function getPromotionPiece(pieceType, playerColor) {
  * Start the multiplayer game
  */
 function startMultiplayerGame() {
+  console.log('Starting multiplayer game...');
+  
+  // Important: Make sure handlePieceMove is available globally
+  if (typeof handlePieceMove !== 'function') {
+    window.handlePieceMove = window.handlePieceMove || function(fromSquare, toSquare, playerColor) {
+      console.log('Using fallback handlePieceMove');
+      // Fallback implementation
+      const piece = fromSquare.textContent;
+      fromSquare.textContent = '';
+      toSquare.textContent = piece;
+      return true;
+    };
+  }
   MP.gameStarted = true;
+  MP.onlineModeActive = true;
+  
+  // Force hide the multiplayer overlay with !important to override any other styles
+  const mpOverlay = document.getElementById('mp-overlay');
+  if (mpOverlay) {
+    console.log('Hiding multiplayer overlay');
+    mpOverlay.style.cssText = 'display: none !important';
+    
+    // Also try to remove it from the DOM if hiding doesn't work
+    setTimeout(() => {
+      if (mpOverlay.style.display !== 'none' || mpOverlay.offsetParent !== null) {
+        console.log('Overlay still visible, removing from DOM');
+        mpOverlay.parentNode.removeChild(mpOverlay);
+      }
+    }, 100);  
+  } else {
+    console.log('No mpOverlay found to hide');
+  }
+  
+  // Show a game status indicator
+  const gameInfo = document.querySelector('.game-info');
+  if (gameInfo) {
+    const mpStatus = document.createElement('div');
+    mpStatus.id = 'in-game-mp-status';
+    mpStatus.className = 'mp-game-status';
+    mpStatus.innerHTML = `<span>Online Match vs ${MP.opponentName}</span>`;
+    gameInfo.prepend(mpStatus);
+  }
+  
+  // Set game mode to online - using multiple approaches to ensure it's set
+  window.currentGameMode = window.GAME_MODE.ONLINE;
+  if (window.GAME_MODE && typeof window.GAME_MODE.ONLINE !== 'undefined') {
+    console.log('Setting game mode to ONLINE using window.GAME_MODE');
+    window.currentGameMode = window.GAME_MODE.ONLINE;
+  } else {
+    console.log('Setting game mode to "online" as string fallback');
+    window.currentGameMode = 'online';
+  }
+  console.log('Current game mode set to:', window.currentGameMode);
   
   // Update UI
   updateMultiplayerStatus(`Game started! You are playing as ${MP.playerColor === PLAYER.WHITE ? 'White' : 'Black'}`);
-  
-  // Hide the multiplayer overlay to reveal the game board
-  const mpOverlay = document.getElementById('mp-overlay');
-  if (mpOverlay) {
-    mpOverlay.style.display = 'none';
-    console.log('Multiplayer overlay hidden, game is starting');
-  }
   
   // Reset board and set up for a new game
   resetBoard();
@@ -367,6 +641,47 @@ function startMultiplayerGame() {
   } else {
     enableBoardInteraction();
   }
+  
+  // Add some CSS styles for the in-game multiplayer status
+  if (!document.getElementById('mp-game-styles')) {
+    const styles = document.createElement('style');
+    styles.id = 'mp-game-styles';
+    styles.textContent = `
+      .mp-game-status {
+        background-color: #3498db;
+        color: white;
+        padding: 8px 12px;
+        border-radius: 4px;
+        margin-bottom: 10px;
+        font-weight: bold;
+        text-align: center;
+      }
+      
+      /* Ensure overlay is hidden */
+      #mp-overlay {
+        display: none !important;
+      }
+    `;
+    document.head.appendChild(styles);
+  }
+  
+  // Dispatch an event to signal that the game has started
+  const gameStartEvent = new CustomEvent('chess_game_started', {
+    detail: {
+      roomId: MP.roomId,
+      playerColor: MP.playerColor
+    }
+  });
+  window.dispatchEvent(gameStartEvent);
+  
+  // Store in localStorage that the game has started
+  localStorage.setItem(`chessGameStarted_${MP.roomId}`, JSON.stringify({
+    timestamp: new Date().getTime(),
+    hostId: MP.isHost ? MP.playerId : null,
+    joinerId: !MP.isHost ? MP.playerId : null
+  }));
+  
+  console.log('Multiplayer game started successfully!');
 }
 
 /**
@@ -629,18 +944,18 @@ function showRoomCodeDisplay(roomId) {
 }
 
 /**
- * Leave multiplayer mode and clean up
+ * Leave multiplayer mode
  */
 function leaveMultiplayerMode() {
-  // Disconnect from server
   if (MP.socket) {
-    MP.socket.emit('leave_room', { roomId: MP.roomId });
+    // Properly disconnect from the server
     MP.socket.disconnect();
+    MP.socket = null;
   }
   
-  // Reset multiplayer state
-  MP.socket = null;
+  // Reset all MP state
   MP.roomId = null;
+  MP.playerId = null;
   MP.isHost = false;
   MP.playerColor = null;
   MP.opponentConnected = false;
@@ -649,14 +964,10 @@ function leaveMultiplayerMode() {
   MP.onlineModeActive = false;
   
   // Hide multiplayer UI
-  const mpOverlay = document.getElementById('mp-overlay');
-  if (mpOverlay) {
-    mpOverlay.style.display = 'none';
-  }
+  hideMultiplayerUI();
   
-  // Reset game for single player
+  // Reset board
   resetBoard();
-  resetClock();
   
   // Update game status
   updateGameStatus();
