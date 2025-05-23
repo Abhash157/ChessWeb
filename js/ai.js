@@ -5,10 +5,21 @@
 
 import { getState, updateState, PLAYER, pieces } from './state.js';
 
+// Game mode constants
+const GAME_MODE = {
+  LOCAL: 'local',   // Local 2-player
+  AI: 'ai',         // Playing against AI
+  ONLINE: 'online'  // Playing online against another player
+};
+
+// Make GAME_MODE available globally
+window.GAME_MODE = GAME_MODE;
+
 let engine = null;
 let engineReady = false;
 let waitingForMove = false;
-let aiDifficulty = 10; // Default: search depth 10
+// Initialize with a default difficulty if not set
+let aiDifficulty = window.aiDifficulty || 10; // Default: search depth 10
 let aiThinking = false;
 window.aiActive = false; // Expose to global scope
 window.aiColor = 1; // Default to Black (corresponds to PLAYER.BLACK)
@@ -19,7 +30,7 @@ window.isAIMakingMove = false; // Flag for AI-driven moves
  */
 async function initEngine() {
     try {
-        console.log('Initializing Stockfish engine as a Web Worker...');
+        console.log('AI_LOG: initEngine - Initializing Stockfish engine as a Web Worker...');
         
         return new Promise((resolve, reject) => {
             try {
@@ -52,7 +63,7 @@ async function initEngine() {
                 
                 // Resolve after a small delay to ensure engine had time to initialize
                 setTimeout(() => {
-                    console.log('Stockfish engine initialized as Web Worker');
+                    console.log('AI_LOG: initEngine - Stockfish engine initialized as Web Worker');
                     engineReady = true;
                     resolve(true);
                 }, 500);
@@ -77,17 +88,17 @@ function handleEngineMessage(message) {
     
     if (message === 'readyok') {
         engineReady = true;
-        console.log('Stockfish engine ready');
+        console.log('AI_LOG: handleEngineMessage - Stockfish engine ready');
     }
     
     // Handle best move response
     if (message.startsWith('bestmove')) {
-        console.log('Engine response:', message);
+        console.log('AI_LOG: handleEngineMessage - Engine response (bestmove):', message);
         if (waitingForMove && aiThinking) {
             const moveStr = message.split(' ')[1];
             waitingForMove = false;
             aiThinking = false;
-            console.log(`AI decided on move: ${moveStr}`);
+            console.log(`AI_LOG: handleEngineMessage - AI decided on move: ${moveStr}`);
             makeAIMove(moveStr);
         }
     }
@@ -211,8 +222,9 @@ function getFENSymbol(piece) {
  * Request a move from the AI engine
  */
 function requestAIMove() {
+    console.log("AI_LOG: requestAIMove - Entered function."); // New log
     const state = getState();
-    console.log('requestAIMove called, engineReady:', engineReady, 'aiThinking:', aiThinking, 'gameOver:', state.gameOver, 'current turn:', state.turn === PLAYER.WHITE ? 'White' : 'Black');
+    console.log('AI_LOG: requestAIMove - engineReady:', engineReady, 'aiThinking:', aiThinking, 'gameOver:', state.gameOver, 'current turn:', state.turn === PLAYER.WHITE ? 'White' : 'Black');
     
     if (!engineReady || !engine || aiThinking || state.gameOver) {
         console.log('Skipping AI move request - not ready or already thinking or game over');
@@ -221,26 +233,29 @@ function requestAIMove() {
     
     console.log('Starting AI thinking process...');
     console.log(`requestAIMove: Using aiDifficulty = ${state.ai.difficulty} for this move calculation.`);
-    
+
     aiThinking = true;
     waitingForMove = true;
-    
+
     const fen = getCurrentFEN();
-    
     sendToEngine('ucinewgame');
     sendToEngine(`position fen ${fen}`);
-    
+
     // Calculate and set Stockfish Skill Level based on aiDifficulty (slider 1-15)
-    // Skill Level (Stockfish 0-20)
-    const aiDifficulty = state.ai.difficulty;
-    const calculatedSkillLevel = Math.round(((aiDifficulty - 1) / 14) * 20);
-    console.log(`Mapping AI Difficulty (slider ${aiDifficulty}) to Stockfish Skill Level ${calculatedSkillLevel}`);
+    const currentState = getState();
+    // Ensure we have a valid difficulty level
+    const currentAiDifficulty = typeof currentState.ai?.difficulty === 'number' ? 
+        currentState.ai.difficulty : 
+        (typeof window.aiDifficulty === 'number' ? window.aiDifficulty : 10);
+
+    const calculatedSkillLevel = Math.max(0, Math.min(20, Math.round((currentAiDifficulty - 1) / 14 * 20)));
+    console.log(`Mapping AI Difficulty (slider ${currentAiDifficulty}) to Stockfish Skill Level ${calculatedSkillLevel}`);
     sendToEngine(`setoption name Skill Level value ${calculatedSkillLevel}`);
-    
+
     // Set search parameters (depth or movetime) based on aiDifficulty
-    if (aiDifficulty <= 5) {
-        // Lower difficulty (slider 1-5) also implies lower depth. Skill Level will make it play weaker.
-        let engineDepth = aiDifficulty; // Depth 1 to 5
+    if (currentAiDifficulty <= 5) {
+        // Lower difficulty (slider 1-5) uses lower depth
+        const engineDepth = Math.max(1, Math.min(5, currentAiDifficulty));
         console.log(`Engine: go depth ${engineDepth} (Skill Level: ${calculatedSkillLevel})`);
         sendToEngine(`go depth ${engineDepth}`);
     } else {
@@ -257,7 +272,9 @@ function requestAIMove() {
  * @param {string} uciMove - Move in UCI format (e.g., "e2e4")
  */
 async function makeAIMove(uciMove) {
-    console.log(`Attempting to make AI move: ${uciMove}`);
+    console.log(`AI_LOG: makeAIMove - Attempting to make AI move: ${uciMove}`);
+    window.isAIMakingMove = true; // Set flag before AI interacts with board
+
     if (!uciMove || uciMove.length < 4) {
         console.error('Invalid AI move string:', uciMove);
         aiThinking = false; // Reset thinking flag
@@ -285,8 +302,12 @@ async function makeAIMove(uciMove) {
         const fromSquare = state.squares[fromRow * 8 + fromCol];
         const toSquare = state.squares[toRow * 8 + toCol];
 
+        console.log(`AI_LOG: makeAIMove - Identified fromSquare:`, fromSquare, `toSquare:`, toSquare);
+
         if (!fromSquare || !toSquare) {
-            console.error('Could not find fromSquare or toSquare for AI move.');
+            console.error(`AI_LOG: makeAIMove - ERROR: Could not find squares for move: ${uciMove}`);
+            window.isAIMakingMove = false;
+            aiThinking = false; // Reset thinking flag
             return;
         }
 
@@ -320,10 +341,23 @@ async function makeAIMove(uciMove) {
         // Clean up after move
         cleanupAfterMove();
         
-        // Update turn
+        // Update turn - switch to the other player
         const newTurn = state.ai.color === PLAYER.WHITE ? PLAYER.BLACK : PLAYER.WHITE;
-        console.log(`Updating turn from ${state.ai.color} to ${newTurn}`);
-        updateState({ turn: newTurn });
+        console.log(`AI move completed. Updating turn from ${state.ai.color} to ${newTurn}`);
+        
+        // Important: Update window.turn directly to ensure it's immediately available
+        window.turn = newTurn;
+        
+        updateState({ 
+            turn: newTurn,
+            'ai.isMakingMove': false,
+            'ai.isExecutingMove': false
+        }, 'TURN_CHANGE');
+        
+        // Verify turn was updated correctly
+        console.log(`AI_LOG: makeAIMove - Turn updated. window.turn is now ${window.turn}`);
+        
+        aiThinking = false; // Reset thinking flag immediately after turn change
         
         // Update UI and check game status
         const { updateGameStatus } = await import('./ui/status.js');
@@ -383,14 +417,14 @@ async function makeAIMove(uciMove) {
         console.log('AI move execution completed successfully');
     } catch (error) {
         console.error('Error during AI move execution:', error);
-    } finally {
-        // Always clean up flags
+        // In case of error, ensure we reset all flags
         aiThinking = false;
-        updateState({ 
+        window.isAIMakingMove = false;
+        updateState({
             'ai.isMakingMove': false,
-            'ai.isExecutingMove': false
-        });
-        console.log('AI isMakingMove and isExecutingMove set to false');
+            'ai.isExecutingMove': false,
+            'turn': window.aiColor === PLAYER.WHITE ? PLAYER.BLACK : PLAYER.WHITE
+        }, 'TURN_CHANGE');
     }
 }
 
@@ -399,9 +433,9 @@ async function makeAIMove(uciMove) {
  * @param {number} level - Difficulty level (1-15)
  */
 function setAIDifficulty(level) {
-    const difficulty = Math.max(1, Math.min(15, level));
-    updateState({ 'ai.difficulty': difficulty });
-    console.log(`AI difficulty set to ${difficulty}`);
+    console.log(`AI_LOG: setAIDifficulty - Setting AI difficulty to: ${level}`);
+    aiDifficulty = parseInt(level);
+    updateState({ ai: { difficulty: aiDifficulty } });
 }
 
 /**
@@ -409,31 +443,54 @@ function setAIDifficulty(level) {
  * @param {boolean} active - Whether AI should be active
  */
 function toggleAI(active) {
-    updateState({ 'ai.active': !!active });
-    const state = getState();
-    console.log(`AI Toggled: ${state.ai.active}`);
+    console.log(`AI_LOG: toggleAI - Called with active: ${active}`);
+    window.aiActive = active;
     
-    if (state.ai.active) {
-        if (!engineReady && !engine) {
-            console.log('Initializing engine for the first time...');
-            initEngine().then(ready => {
-                console.log('Engine initialization result:', ready);
-                const currentState = getState();
-                if (ready && currentState.turn === currentState.ai.color) {
-                    console.log('AI active and it is AI\'s turn, requesting move.');
-                    requestAIMove();
-                }
-            }).catch(error => {
-                console.error('Failed to initialize engine:', error);
-                alert('Failed to initialize the chess engine. Please try refreshing the page or check console for errors.');
-            });
-        } else if (engineReady && state.turn === state.ai.color) {
-            console.log('Engine already ready and it is AI\'s turn, requesting AI move...');
-            requestAIMove();
+    // Set the game mode based on AI activation
+    if (active) {
+        // Set game mode to AI when activating AI
+        window.currentGameMode = window.GAME_MODE.AI;
+        console.log("AI_LOG: toggleAI - Game mode set to AI");
+    } else {
+        // Set game mode back to LOCAL when deactivating AI
+        window.currentGameMode = window.GAME_MODE.LOCAL;
+        console.log("AI_LOG: toggleAI - Game mode set to LOCAL");
+    }
+    
+    updateState({ 
+        ai: { active: active },
+        gameMode: active ? 'ai' : 'local'
+    });
+
+    if (active && !engineReady) {
+        console.log("AI_LOG: toggleAI - AI activated, engine not ready. Initializing engine.");
+        initEngine().then(ready => {
+            if (ready) {
+                console.log("AI_LOG: toggleAI - Engine initialized successfully after toggle.");
+                checkAITurn(); // Check if AI should move immediately
+            } else {
+                console.error("AI_LOG: toggleAI - Engine failed to initialize after toggle.");
+                window.aiActive = false; // Revert state if engine fails
+                window.currentGameMode = window.GAME_MODE.LOCAL;
+                updateState({ 
+                    ai: { active: false },
+                    gameMode: 'local'
+                });
+            }
+        });
+    } else if (active && engineReady) {
+        console.log("AI_LOG: toggleAI - AI activated, engine already ready.");
+        checkAITurn();
+    } else {
+        console.log("AI_LOG: toggleAI - AI deactivated.");
+        
+        // If AI is turned off while AI is thinking, send stop command
+        if (aiThinking) {
+            sendToEngine('stop');
+            console.log("AI_LOG: toggleAI - Sent 'stop' to engine.");
+            aiThinking = false;
+            waitingForMove = false;
         }
-    } else if (engine) {
-        console.log('AI deactivated. Engine remains loaded.');
-        // Optionally, you could send 'stop' or 'quit' to the engine if desired
     }
 }
 
@@ -442,14 +499,13 @@ function toggleAI(active) {
  * @param {number} color - PLAYER.WHITE or PLAYER.BLACK
  */
 function setAIColor(color) {
-    updateState({ 'ai.color': color });
-    const state = getState();
-    console.log(`AI color set to: ${state.ai.color === PLAYER.WHITE ? 'White' : 'Black'}`);
-    
-    // If it's already AI's turn, make a move
-    if (state.ai.active && engineReady && state.turn === state.ai.color && !state.gameOver) {
-        console.log('AI color changed, and it is now AI\'s turn. Requesting move.');
-        requestAIMove();
+    console.log(`AI_LOG: setAIColor - Setting AI color to: ${color === PLAYER.WHITE ? 'White' : 'Black'}`);
+    window.aiColor = color;
+    updateState({ ai: { color: color } });
+    // If AI is active, check if it's now its turn with the new color
+    if (window.aiActive) {
+        console.log("AI_LOG: setAIColor - AI is active, calling checkAITurn.");
+        checkAITurn();
     }
 }
 
@@ -458,14 +514,19 @@ function setAIColor(color) {
  * This should be called after a human makes a move
  */
 function checkAITurn() {
-    // Get current state from state management
-    const state = getState();
-    console.log(`checkAITurn called. AI Active: ${state.ai.active}, Engine Ready: ${engineReady}, Current Turn: ${state.turn}, AI Color: ${state.ai.color}, Game Over: ${state.gameOver}`);
+    const state = getState(); // Get current game state from state.js
+    console.log(`AI_LOG: checkAITurn - Called. aiActive: ${window.aiActive}, Current Turn: ${state.turn === PLAYER.WHITE ? 'White' : 'Black'} (raw: ${state.turn}), AI Color: ${window.aiColor === PLAYER.WHITE ? 'White' : 'Black'}, Game Over: ${state.gameOver}`);
     
-    if (state.ai.active && engineReady && state.turn === state.ai.color && !state.gameOver) {
-        console.log('It is AI\'s turn. Requesting move with a delay...');
-        // Add a small delay to make the AI move feel more natural
-        setTimeout(requestAIMove, 300);
+    if (window.aiActive && state.turn === window.aiColor && !state.gameOver && !aiThinking) {
+        console.log("AI_LOG: checkAITurn - Conditions met. Requesting AI move.");
+        requestAIMove();
+    } else {
+        let reasons = [];
+        if (!window.aiActive) reasons.push("AI not active");
+        if (state.turn !== window.aiColor) reasons.push("Not AI's turn");
+        if (state.gameOver) reasons.push("Game is over");
+        if (aiThinking) reasons.push("AI is already thinking");
+        console.log(`AI_LOG: checkAITurn - Conditions not met for AI move. Reasons: ${reasons.join('; ')}`);
     }
 }
 

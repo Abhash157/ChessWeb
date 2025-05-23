@@ -255,6 +255,10 @@ export function updateState(changes, eventType) {
   }
 }
 
+// Make primary state functions globally available for script.js
+window.getState = getState;
+window.updateState = updateState;
+
 /**
  * Reset the game state to initial values
  */
