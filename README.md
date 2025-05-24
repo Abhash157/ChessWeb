@@ -1,6 +1,27 @@
 # ChessWeb
 
-A modular web-based chess application with AI opponent powered by Stockfish.
+A modular web-based chess application with AI opponent, multiplayer, and local multiplayer features powered by Stockfish.
+
+
+## Play Now
+
+You can play ChessWeb in two ways:
+
+### Online Multiplayer
+1. Visit [ChessWeb Live](https://abhash.me/ChessWeb)
+2. Click "Multiplayer" to create or join a game
+3. Share the room code with a friend to play together
+
+### Local Play
+1. Visit [ChessWeb Live](https://abhash.me/ChessWeb)
+2. Choose your preferred game mode:
+   - Player vs Player (local hotseat)
+   - Player vs Computer (Stockfish AI)
+3. Adjust AI difficulty as desired
+4. Start playing!
+
+The game works best in modern browsers like Chrome, Firefox, or Edge.
+
 
 ## Features
 
@@ -18,16 +39,23 @@ The application is built with a modular JavaScript structure:
 
 ```
 ChessWeb/
-├── index.html           # Main HTML file
-├── styles.css           # CSS styles
-├── script.js            # Main JavaScript file
+├── index.html              # Main HTML file
+├── css/
+│   └── styles.css         # Core styles and layout
 ├── js/
-│   ├── ai.js            # AI integration with Stockfish
-│   ├── multiplayer.js   # Multiplayer functionality
-│   ├── board.js         # Board creation and UI management
-│   ├── gameState.js     # Game state management
-│   └── stockfish/
-│       └── stockfish-nnue-16-single.js # Stockfish engine
+│   ├── script.js          # Main game logic
+│   ├── board.js           # Chess board and piece management
+│   ├── gameState.js       # Game state and rules
+│   ├── ai/
+│   │   ├── ai.js         # AI opponent logic
+│   │   └── stockfish/    # Stockfish engine files
+│   │       └── stockfish-nnue-16.js
+│   └── multiplayer/
+│       ├── multiplayer.js # Online multiplayer
+│       └── socket.js      # WebSocket handling
+└── server/                # Multiplayer server
+    ├── server.js         # WebSocket/Express server
+    └── package.json      # Server dependencies
 ```
 
 ## How to Run (Development)
