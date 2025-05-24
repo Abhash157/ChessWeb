@@ -1,0 +1,35 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chess Web - Loading</title><style>body {
+      background: #1e1e2e;
+      color: #cdd6f4;
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    
+    .loader {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    
+    .chess-pieces {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      animation: pulse 1.5s infinite alternate;
+    }
+    
+    .loading-text {
+      font-size: 1.2rem;
+    }
+    
+    @keyframes pulse {
+      0% { opacity: 0.5; transform: scale(0.95); }
+      100% { opacity: 1; transform: scale(1.05); }
+    }</style><script>window.onload = function() {
+      setTimeout(function() {
+        window.location.href = 'home.html';
+      }, 1500);
+    };</script><script defer="defer" src="js/main.52d99e4578ad4fcb64ac.js"></script></head><body><div class="loader"><div class="chess-pieces">♔ ♕ ♖ ♗ ♘</div><div class="loading-text">Loading Chess Web...</div></div></body></html>
