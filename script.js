@@ -922,12 +922,12 @@ function initChessApp() {
   squares = document.querySelectorAll('.square');
 
   // Update the central state with the square DOM elements
-  if (typeof window.updateState === 'function') {
-    window.updateState({ squares: Array.from(squares) }); // Use Array.from to store a plain array
-    console.log("SCRIPT_LOG: initChessApp - Updated central state with square DOM elements count:", squares.length);
-  } else {
-    console.error("SCRIPT_LOG: initChessApp - window.updateState is not available to update squares in central state.");
-  }
+  // if (typeof window.updateState === 'function') {
+  //   window.updateState({ squares: Array.from(squares) }); // Use Array.from to store a plain array
+  //   console.log("SCRIPT_LOG: initChessApp - Updated central state with square DOM elements count:", squares.length);
+  // } else {
+  //   console.error("SCRIPT_LOG: initChessApp - window.updateState is not available to update squares in central state.");
+  // }
   
   // Set up promotion modal handlers
   setupPromotionModal();
@@ -1517,11 +1517,10 @@ async function handlePieceMove(fromSquare, toSquare, pieceColor) {
         window.turn = newTurn; // For legacy use within script.js, if any
         CLOCK.activePlayer = newTurn; // Directly set clock's active player
 
-        if (typeof window.updateState === 'function') {
-            window.updateState({ turn: newTurn });
-            console.log(`SCRIPT_LOG: handlePieceMove - Called window.updateState({ turn: ${newTurn} })`);
-        } else {
-            console.warn("SCRIPT_LOG: handlePieceMove - window.updateState is not a function. AI might not get correct turn.");
+        // Update turn state and check if AI should move
+        if (window.aiActive && engineReady && newTurn === window.aiColor && !gameState.gameOver) {
+            console.log(`Turn changed to ${newTurn === PLAYER.WHITE ? 'White' : 'Black'}, requesting AI move...`);
+            requestAIMove();
         }
         updateClockDisplay(); // Update clock display with the new active player
         // switchClock(); // Original call replaced by direct CLOCK.activePlayer set and updateClockDisplay()
