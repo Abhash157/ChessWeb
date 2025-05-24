@@ -14,56 +14,70 @@ A modular web-based chess application with AI opponent powered by Stockfish.
 
 ## Architecture
 
-The application is built with a modular JavaScript structure using ES modules:
+The application is built with a modular JavaScript structure:
 
 ```
 ChessWeb/
 ├── index.html           # Main HTML file
 ├── styles.css           # CSS styles
+├── script.js            # Main JavaScript file
 ├── js/
 │   ├── ai.js            # AI integration with Stockfish
-│   ├── main.js          # Entry point and initialization
+│   ├── multiplayer.js   # Multiplayer functionality
 │   ├── board.js         # Board creation and UI management
 │   ├── gameState.js     # Game state management
-│   ├── moves/
-│   │   ├── moveHandler.js  # High-level move handling
-│   │   ├── whiteMoves.js   # White piece move logic
-│   │   ├── blackMoves.js   # Black piece move logic
-│   │   └── checkDetection.js # Check detection logic
-│   ├── ui/
-│   │   ├── status.js    # Game status updates
-│   │   ├── clock.js     # Chess clock functionality
-│   │   ├── promotion.js # Pawn promotion UI
-│   │   └── history.js   # Move history and capture display
-│   └── libs/
+│   └── stockfish/
 │       └── stockfish-nnue-16-single.js # Stockfish engine
 ```
 
-## Module Structure
-
-- **gameState.js**: Contains game constants, state variables, and piece definitions
-- **board.js**: Handles board creation, piece placement, and visual updates
-- **moves/**: Directory containing move-related logic
-  - **moveHandler.js**: Entry point for move operations
-  - **whiteMoves.js**: White piece movement logic
-  - **blackMoves.js**: Black piece movement logic
-  - **checkDetection.js**: Logic for detecting check positions
-- **ui/**: Directory containing UI-related modules
-  - **clock.js**: Chess clock functionality
-  - **status.js**: Game status updates and end game detection
-  - **promotion.js**: Pawn promotion dialog
-  - **history.js**: Move history display
-- **ai.js**: AI opponent using Stockfish chess engine
-- **main.js**: Application entry point and initialization
-
-## How to Run
+## How to Run (Development)
 
 1. Clone this repository
-2. Start a local server (e.g., using VS Code's Live Server)
-3. Open the application in your browser
-4. Enjoy playing chess!
+2. Install dependencies:
+   ```
+   npm install
+   ```
+3. Start the development server:
+   ```
+   npm run dev
+   ```
+4. Open the application in your browser
+5. Enjoy playing chess!
 
-## Network Access
+## How to Build for Production
+
+1. Install dependencies if you haven't already:
+   ```
+   npm install
+   ```
+2. Build the production version:
+   ```
+   npm run build
+   ```
+3. The optimized files will be generated in the `dist` directory
+
+## Deployment
+
+### Basic Web Server Deployment
+
+1. Build the project as described above
+2. Upload the contents of the `dist` directory to your web server
+3. Configure your web server to serve the files (Apache, Nginx, etc.)
+
+### Netlify Deployment
+
+1. Push your code to a Git repository (GitHub, GitLab, etc.)
+2. Connect your repository to Netlify
+3. Set the build command to `npm run build`
+4. Set the publish directory to `dist`
+
+### Vercel Deployment
+
+1. Push your code to a Git repository
+2. Connect your repository to Vercel
+3. Vercel will automatically detect the build settings
+
+## Network Access (Development)
 
 To make the application accessible to other devices on your local network:
 

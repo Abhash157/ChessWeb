@@ -1076,4 +1076,6 @@ function leaveMultiplayerMode() {
 window.MP = MP;
 window.initMultiplayer = initMultiplayer;
 window.leaveMultiplayerMode = leaveMultiplayerMode;
-window.sendMove = sendMove; 
+window.sendMove = sendMove;
+
+const API_URL = "https://chessweb-server-emdhd5geftgbbser.southeastasia-01.azurewebsites.net/"; 

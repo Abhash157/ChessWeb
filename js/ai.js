@@ -289,7 +289,7 @@ async function makeAIMove(uciMove) {
 
     console.log('Simulating click on fromSquare:', fromSquare);
     await squareClick(fromSquare); // Use await if squareClick is async
-    
+
     console.log('Simulating click on toSquare:', toSquare);
     await squareClick(toSquare); // Use await if squareClick is async
 
@@ -381,7 +381,7 @@ function toggleAI(active) {
                     console.log('Engine ready. Current turn:', window.turn === PLAYER.WHITE ? 'White' : 'Black', 'AI Color:', window.aiColor === PLAYER.WHITE ? 'White' : 'Black');
                     // Only make a move if it's AI's turn and not already thinking
                     if (window.turn === window.aiColor && !aiThinking && !waitingForMove) {
-                        console.log('AI active and it is AI\'s turn, requesting move.');
+                    console.log('AI active and it is AI\'s turn, requesting move.');
                         setTimeout(requestAIMove, 500); // Small delay to ensure UI is updated
                     }
                 }
