@@ -4,7 +4,7 @@
  */
 
 // Socket.io server URL - can be overridden by custom settings
-const DEFAULT_SOCKET_SERVER_URL = 'http://localhost:3000';
+const DEFAULT_SOCKET_SERVER_URL = 'https://chessweb-server-emdhd5geftgbbser.southeastasia-01.azurewebsites.net/';
 
 // Function to get the current server URL (custom or default)
 function getServerUrl() {
@@ -39,6 +39,9 @@ function initMultiplayer() {
     window.sendMove = sendMove;
     console.log('Exposed sendMove function globally');
     
+    // Show multiplayer UI once Socket.io is loaded
+    showMultiplayerUI();
+    
     // Load Socket.io library dynamically
     const script = document.createElement('script');
     script.src = 'https://cdn.socket.io/4.6.0/socket.io.min.js';
@@ -46,6 +49,7 @@ function initMultiplayer() {
     
     script.onload = () => {
       console.log('Socket.io library loaded');
+      // Auto-connect to the default server
       connectToServer();
     };
     
@@ -56,8 +60,6 @@ function initMultiplayer() {
     
     document.head.appendChild(script);
     
-    // Show multiplayer UI once Socket.io is loaded
-    showMultiplayerUI();
     return true;
   } catch (error) {
     console.error('Failed to initialize multiplayer:', error);
@@ -778,12 +780,15 @@ function showMultiplayerUI() {
           </div>
           <div class="mp-option-group">
             <details class="server-config">
-              <summary>Server Settings</summary>
+              <summary>Advanced Server Settings (Optional)</summary>
               <div class="server-settings-content">
-                <label for="server-address">Server Address:</label>
+                <label for="server-address">Custom Server Address:</label>
                 <input type="text" id="server-address" placeholder="e.g., http://192.168.1.5:3000">
-                <p class="server-help">Enter the network URL shown in your server console</p>
-                <button id="save-server-btn" class="mp-btn mp-small-btn">Save Server</button>
+                <p class="server-help">Leave blank to use the default server. Only change if you're running your own server.</p>
+                <div class="server-buttons">
+                  <button id="save-server-btn" class="mp-btn mp-small-btn">Save Custom Server</button>
+                  <button id="reset-server-btn" class="mp-btn mp-small-btn">Use Default Server</button>
+                </div>
               </div>
             </details>
           </div>
@@ -795,7 +800,7 @@ function showMultiplayerUI() {
           </div>
           <button id="join-room-btn" class="mp-btn">Join Game</button>
         </div>
-        <div id="mp-status" class="mp-status">Connect to play online</div>
+        <div id="mp-status" class="mp-status">Connecting to default server...</div>
         <div id="room-code-display" class="room-code-display" style="display: none;"></div>
         <button id="mp-cancel-btn" class="mp-btn mp-cancel-btn">Cancel</button>
       </div>
@@ -822,13 +827,18 @@ function showMultiplayerUI() {
       leaveMultiplayerMode();
     });
     
-    // Initialize server address input with stored value if available
+    // Initialize server address input with stored value if it differs from default
     const serverAddressInput = document.getElementById('server-address');
-    const savedServerUrl = getServerUrl();
-    serverAddressInput.value = savedServerUrl;
+    const savedServerUrl = localStorage.getItem('chessServerUrl');
+    if (savedServerUrl && savedServerUrl !== DEFAULT_SOCKET_SERVER_URL) {
+      serverAddressInput.value = savedServerUrl;
+    } else {
+      serverAddressInput.value = ''; // Leave blank to indicate using default
+    }
     
-    // Also display the current server in the status
-    updateMultiplayerStatus(`Ready to connect to server at ${savedServerUrl}`);
+    // Initialize and display the current server in the status
+    const currentServer = getServerUrl();
+    updateMultiplayerStatus(`Connecting to server: ${currentServer}`);
     
     // Add event listener for save server button
     document.getElementById('save-server-btn').addEventListener('click', () => {
@@ -850,7 +860,7 @@ function showMultiplayerUI() {
           }
           
           // Show status message
-          updateMultiplayerStatus(`Connecting to server at ${serverUrl}...`);
+          updateMultiplayerStatus(`Connecting to custom server at ${serverUrl}...`);
           
           // Connect to the new server
           setTimeout(() => {
@@ -858,9 +868,30 @@ function showMultiplayerUI() {
           }, 500);
           
         } catch (error) {
-          updateMultiplayerStatus(`Error: ${error.message}. Use format http://IP:PORT`);
+          updateMultiplayerStatus(`Error: ${error.message}. Use format http://IP:PORT`, true);
         }
+      } else {
+        updateMultiplayerStatus(`Please enter a valid server URL or use the default server`, true);
       }
+    });
+    
+    // Add event listener for reset server button
+    document.getElementById('reset-server-btn').addEventListener('click', () => {
+      // Clear any saved custom server
+      localStorage.removeItem('chessServerUrl');
+      serverAddressInput.value = '';
+      
+      // Reconnect to default server
+      if (MP.socket) {
+        MP.socket.disconnect();
+      }
+      
+      updateMultiplayerStatus(`Connecting to default server...`);
+      
+      // Connect to the default server
+      setTimeout(() => {
+        connectToServer(DEFAULT_SOCKET_SERVER_URL);
+      }, 500);
     });
   } else {
     mpOverlay.style.display = 'flex';
@@ -928,10 +959,16 @@ function showMultiplayerUI() {
         margin: 5px 0;
       }
       
+      .server-buttons {
+        display: flex;
+        gap: 10px;
+        margin-top: 10px;
+      }
+      
       .mp-small-btn {
         padding: 5px 10px;
         font-size: 0.9rem;
-        margin-top: 5px;
+        flex: 1;
       }
       
       .mp-btn {
@@ -1078,4 +1115,5 @@ window.initMultiplayer = initMultiplayer;
 window.leaveMultiplayerMode = leaveMultiplayerMode;
 window.sendMove = sendMove;
 
-const API_URL = "https://chessweb-server-emdhd5geftgbbser.southeastasia-01.azurewebsites.net/"; 
+// Use the same URL as the DEFAULT_SOCKET_SERVER_URL for consistency
+const API_URL = DEFAULT_SOCKET_SERVER_URL; 
