@@ -208,10 +208,16 @@ function getFENSymbol(piece) {
  * Request a move from the AI engine
  */
 function requestAIMove() {
-    console.log('requestAIMove called, engineReady:', engineReady, 'aiThinking:', aiThinking, 'gameOver:', gameState.gameOver, 'current window.turn:', window.turn === PLAYER.WHITE ? 'White' : 'Black');
+    console.log('requestAIMove called, engineReady:', engineReady, 'aiThinking:', aiThinking, 'gameOver:', gameState.gameOver, 'current window.turn:', window.turn === PLAYER.WHITE ? 'White' : 'Black', 'AI Color:', window.aiColor === PLAYER.WHITE ? 'White' : 'Black');
     
     if (!engineReady || !engine || aiThinking || gameState.gameOver) {
         console.log('Skipping AI move request - not ready or already thinking or game over');
+        return;
+    }
+    
+    // Double check it's actually AI's turn
+    if (window.turn !== window.aiColor) {
+        console.log('Not AI\'s turn in requestAIMove. Skipping AI move.');
         return;
     }
     
@@ -284,11 +290,6 @@ async function makeAIMove(uciMove) {
     console.log('Simulating click on fromSquare:', fromSquare);
     await squareClick(fromSquare); // Use await if squareClick is async
     
-    // Add a small delay if needed, or check selection state
-    // if (!selectedSquare || selectedSquare !== fromSquare) {
-    //     console.warn('fromSquare was not selected after click, AI move might fail.');
-    // }
-
     console.log('Simulating click on toSquare:', toSquare);
     await squareClick(toSquare); // Use await if squareClick is async
 
@@ -329,6 +330,19 @@ async function makeAIMove(uciMove) {
         }
     }
     
+    // Ensure the turn has properly changed after AI move
+    const expectedPlayerTurn = window.aiColor === PLAYER.WHITE ? PLAYER.BLACK : PLAYER.WHITE;
+    if (window.turn === window.aiColor) {
+        console.warn('Turn did not change after AI move. Manually setting turn to player.');
+        window.turn = expectedPlayerTurn;
+        CLOCK.activePlayer = expectedPlayerTurn;
+        updateClockDisplay();
+        updateGameStatus();
+    }
+    
+    // Prevent AI from making another move immediately
+    waitingForMove = false;
+    
     console.log('AI move simulation complete.');
     aiThinking = false; // Reset thinking flag
     window.isAIMakingMove = false; // Clear flag after move attempt
@@ -349,6 +363,12 @@ function setAIDifficulty(level) {
  * @param {boolean} active - Whether AI should be active
  */
 function toggleAI(active) {
+    // First, reset AI state variables to ensure clean state
+    aiThinking = false;
+    waitingForMove = false;
+    window.isAIMakingMove = false;
+    
+    // Now set the active state
     window.aiActive = !!active; // Update global
     console.log(`AI Toggled: ${window.aiActive}`);
     
@@ -357,17 +377,25 @@ function toggleAI(active) {
             console.log('Initializing engine for the first time...');
             initEngine().then(ready => {
                 console.log('Engine initialization result:', ready);
-                if (ready && turn === window.aiColor) {
-                    console.log('AI active and it is AI\'s turn, requesting move.');
-                    requestAIMove();
+                if (ready) {
+                    console.log('Engine ready. Current turn:', window.turn === PLAYER.WHITE ? 'White' : 'Black', 'AI Color:', window.aiColor === PLAYER.WHITE ? 'White' : 'Black');
+                    // Only make a move if it's AI's turn and not already thinking
+                    if (window.turn === window.aiColor && !aiThinking && !waitingForMove) {
+                        console.log('AI active and it is AI\'s turn, requesting move.');
+                        setTimeout(requestAIMove, 500); // Small delay to ensure UI is updated
+                    }
                 }
             }).catch(error => {
                 console.error('Failed to initialize engine:', error);
                 alert('Failed to initialize the chess engine. Please try refreshing the page or check console for errors.');
             });
-        } else if (engineReady && turn === window.aiColor) {
-            console.log('Engine already ready and it is AI\'s turn, requesting AI move...');
-            requestAIMove();
+        } else if (engineReady) {
+            console.log('Engine already ready. Current turn:', window.turn === PLAYER.WHITE ? 'White' : 'Black', 'AI Color:', window.aiColor === PLAYER.WHITE ? 'White' : 'Black');
+            // Only make a move if it's AI's turn and not already thinking
+            if (window.turn === window.aiColor && !aiThinking && !waitingForMove) {
+                console.log('Engine ready and it is AI\'s turn, requesting AI move...');
+                setTimeout(requestAIMove, 500); // Small delay to ensure UI is updated
+            }
         }
     } else if (engine) {
         console.log('AI deactivated. Engine remains loaded.');
@@ -395,8 +423,21 @@ function setAIColor(color) {
  * This should be called after a human makes a move
  */
 function checkAITurn() {
-    console.log(`checkAITurn called. AI Active: ${window.aiActive}, Engine Ready: ${engineReady}, Current Turn: ${turn}, AI Color: ${window.aiColor}, Game Over: ${gameState.gameOver}`);
-    if (window.aiActive && engineReady && turn === window.aiColor && !gameState.gameOver) {
+    console.log(`checkAITurn called. AI Active: ${window.aiActive}, Engine Ready: ${engineReady}, Current Turn: ${window.turn === PLAYER.WHITE ? 'White' : 'Black'}, AI Color: ${window.aiColor === PLAYER.WHITE ? 'White' : 'Black'}, Game Over: ${gameState.gameOver}, AI Thinking: ${aiThinking}, Waiting for Move: ${waitingForMove}`);
+    
+    // Don't make a move if AI is already thinking or waiting for a move
+    if (aiThinking || waitingForMove) {
+        console.log('AI is already thinking or waiting for a move. Skipping checkAITurn.');
+        return;
+    }
+    
+    // Double check that it's actually AI's turn
+    if (window.turn !== window.aiColor) {
+        console.log('Not AI\'s turn. Current turn:', window.turn === PLAYER.WHITE ? 'White' : 'Black');
+        return;
+    }
+    
+    if (window.aiActive && engineReady && window.turn === window.aiColor && !gameState.gameOver) {
         console.log('It is AI\'s turn. Requesting move with a delay...');
         // Add a small delay to make the AI move feel more natural
         setTimeout(requestAIMove, 300);

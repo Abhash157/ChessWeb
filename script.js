@@ -1040,9 +1040,9 @@ async function squareClick(square) {
   }
 
   // AI mode: enforce proper turn and piece constraints
-  if (currentGameMode === GAME_MODE.AI && window.aiActive) {
-    // Don't allow human player to move if it's AI's turn (unless AI is making the move via isAIMakingMove flag)
-    if (window.turn === window.aiColor && !window.isAIMakingMove) {
+  if (currentGameMode === GAME_MODE.AI && window.aiActive && !window.isAIMakingMove) {
+    // Don't allow human player to move if it's AI's turn
+    if (window.turn === window.aiColor) {
       console.log('Human click ignored: It is AI\'s turn.');
       return;
     }
