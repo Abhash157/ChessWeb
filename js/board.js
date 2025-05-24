@@ -76,31 +76,31 @@ export function createPieceElement(pieceText, square) {
  * @param {string} pieceText - The piece being moved
  * @returns {Promise} Resolves when animation is complete
  */
-export function animatePieceMovement(fromSquare, toSquare, pieceText) {
+export async function animatePieceMovement(fromSquare, toSquare, pieceText) {
   return new Promise(resolve => {
     if (!fromSquare || !toSquare || !pieceText) {
         console.warn("Animation skipped due to missing parameters", fromSquare, toSquare, pieceText);
         resolve();
         return;
     }
-    const pieceClone = createPieceElement(pieceText, fromSquare);
-    fromSquare.textContent = ''; // Visually clear original square earlier for smoother effect
-
+    
     const toRect = toSquare.getBoundingClientRect();
-    const currentRect = pieceClone.getBoundingClientRect(); // Get current position of the clone
-
+    const currentRect = fromSquare.getBoundingClientRect();
+    
+    
     // Calculate the movement distance based on fixed positions
     const deltaX = toRect.left - currentRect.left;
     const deltaY = toRect.top - currentRect.top;
     
-    pieceClone.style.transition = 'transform 0.3s ease-out';
+    fromSquare.style.transition = 'transform 0.3s ease-out';
     
     requestAnimationFrame(() => {
-      pieceClone.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+      fromSquare.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
     });
-
-    pieceClone.addEventListener('transitionend', () => {
-      pieceClone.remove();
+    
+    fromSquare.addEventListener('transitionend', () => {
+      fromSquare.textContent = ''; // Visually clear original square earlier for smoother effect
+      fromSquare.remove();
       // The actual placement on toSquare happens in the move logic after animation
       resolve();
     }, { once: true });

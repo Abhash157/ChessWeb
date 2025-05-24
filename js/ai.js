@@ -335,6 +335,7 @@ async function makeAIMove(uciMove) {
         
         // Execute the move directly
         console.log('AI about to execute move:', { from: `${fromRow},${fromCol}`, to: `${toRow},${toCol}`, piece });
+        
         await makeMove(fromSquare, toSquare, fromRow, fromCol, toRow, toCol);
         console.log('Move executed, cleaning up');
 

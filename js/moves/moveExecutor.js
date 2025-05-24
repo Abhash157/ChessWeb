@@ -224,11 +224,12 @@ async function handlePromotion(fromSquare, toSquare, pieceText, playerColor) {
  */
 async function executeRegularMove(fromSquare, toSquare, pieceText) {
   // Animate the piece movement
-  await animatePieceMovement(fromSquare, toSquare, pieceText);
+  let pieceClone = createPieceElement(pieceText, fromSquare);
+  fromSquare.textContent = '';
+  await animatePieceMovement(pieceClone, toSquare, pieceText);
+  toSquare.textContent = pieceText;
   
   // Update the board
-  fromSquare.textContent = '';
-  toSquare.textContent = pieceText;
 }
 
 /**
