@@ -1261,15 +1261,32 @@ function selectPromotionPiece(pieceType) {
   // Push the now completed promotion move to history
   gameState.moveHistory.push(moveData);
 
-  // For online mode, send the promotion choice
+  // For online multiplayer mode
   if (currentGameMode === GAME_MODE.ONLINE && window.MP && window.MP.onlineModeActive && typeof window.sendMove === 'function') {
     const onlinePromotionData = { 
       fromIndex: fromIndex, // from pendingPromotion
-      toIndex: toIndex,   // from pendingPromotion
-      promotion: pieceType 
+      toIndex: toIndex,     // from pendingPromotion
+      promotion: pieceType,
+      from: { row: Math.floor(fromIndex / 8), col: fromIndex % 8 },
+      to: { row: Math.floor(toIndex / 8), col: toIndex % 8 },
+      piece: moveData.pieceMovedOriginal
     };
     console.log("Sending promotion choice to opponent:", onlinePromotionData);
     window.sendMove(onlinePromotionData);
+  }
+  
+  // For local multiplayer mode
+  else if (currentGameMode === 'local' && window.LMP && window.LMP.gameStarted && typeof window.sendLocalMove === 'function') {
+    const localPromotionData = {
+      fromIndex: fromIndex,
+      toIndex: toIndex,
+      promotion: pieceType,
+      from: { row: Math.floor(fromIndex / 8), col: fromIndex % 8 },
+      to: { row: Math.floor(toIndex / 8), col: toIndex % 8 },
+      piece: moveData.pieceMovedOriginal
+    };
+    console.log("Sending local promotion choice to opponent:", localPromotionData);
+    window.sendLocalMove(localPromotionData);
   }
   
   // Clean up promotion state

@@ -4,6 +4,8 @@
  * Used as a fallback when WebSocket connection fails
  */
 
+import { checkGameStatus } from "./moveHandler";
+
 // Local Multiplayer State
 const LMP = {
   playerId: null,
@@ -163,15 +165,21 @@ function sendLocalMove(moveData) {
   
   console.log('Sending move to opponent locally:', moveData);
   
-  // Create a simple move format: piece,fromRow,fromCol,toRow,toCol
+  // Create move data with fields for regular moves
   const { from, to, piece } = moveData;
   const fromRow = from.row;
   const fromCol = from.col;
   const toRow = to.row;
   const toCol = to.col;
   
-  // Create a simple move string that's easy to parse
-  const moveString = `${piece},${fromRow},${fromCol},${toRow},${toCol}`;
+  // Create a move string, potentially with promotion info if exists
+  let moveString = `${piece},${fromRow},${fromCol},${toRow},${toCol}`;
+  
+  // Check if this is a promotion move (promotion field would be set by the selectPromotionPiece function)
+  if (moveData.promotion) {
+    moveString += `,promotion,${moveData.promotion}`;
+    console.log('Adding promotion info to move:', moveData.promotion);
+  }
   
   // Add a unique timestamp to ensure event triggers
   const timestamp = new Date().getTime();
@@ -187,6 +195,7 @@ function sendLocalMove(moveData) {
   
   // Update local turn status - switch to opponent's turn
   window.turn = LMP.playerColor === PLAYER.WHITE ? PLAYER.BLACK : PLAYER.WHITE;
+  checkGameStatus();
   disableBoardInteraction(); // Disable board until opponent moves
   
   // Update UI to show waiting for opponent
@@ -238,7 +247,7 @@ function handleLocalRoomJoined(data) {
 
 /**
  * Handle receiving a move from the opponent
- * @param {string} moveString - Move in format 'piece,fromRow,fromCol,toRow,toCol'
+ * @param {string} moveString - Move in format 'piece,fromRow,fromCol,toRow,toCol[,promotion,pieceType]'
  */
 function handleLocalOpponentMove(moveString) {
   if (!LMP.gameStarted) return;
@@ -246,8 +255,11 @@ function handleLocalOpponentMove(moveString) {
   console.log('Received move from opponent locally:', moveString);
   
   try {
-    // Parse the move string
-    const [piece, fromRow, fromCol, toRow, toCol] = moveString.split(',');
+    // Split the move string
+    const parts = moveString.split(',');
+    
+    // The basic move always has the first 5 parts
+    const [piece, fromRow, fromCol, toRow, toCol] = parts;
     
     // Convert to numbers
     const moveData = {
@@ -256,22 +268,83 @@ function handleLocalOpponentMove(moveString) {
       to: { row: parseInt(toRow), col: parseInt(toCol) }
     };
     
+    // Check for promotion - format would be: piece,fromRow,fromCol,toRow,toCol,promotion,pieceType
+    if (parts.length > 5 && parts[5] === 'promotion') {
+      moveData.promotion = parts[6]; // The promotion piece type (queen, rook, etc.)
+      console.log('Move includes promotion to:', moveData.promotion);
+    }
+    
     console.log('Parsed opponent move:', moveData);
     
     // Save the move for reference
     LMP.lastReceivedMove = moveData;
     
-    // Apply the opponent's move to the local board
-    applyOpponentMove(moveData);
+    // Get the chessboard
+    const board = document.getElementById('chessboard');
+    if (!board) {
+      console.error('Chessboard not found in DOM');
+      return;
+    }
     
-    // Update turn status to player's turn
-    window.turn = LMP.playerColor;
-    enableBoardInteraction();
+    // Get the squares from the DOM
+    const fromSquare = board.querySelector(`.square[data-row="${fromRow}"][data-col="${fromCol}"]`);
+    const toSquare = board.querySelector(`.square[data-row="${toRow}"][data-col="${toCol}"]`);
     
-    // Update UI
-    updateMultiplayerStatus(`Your turn`);
+    console.log('Opponent move squares:', {
+      from: fromSquare,
+      to: toSquare,
+      fromCoords: `${fromRow},${fromCol}`,
+      toCoords: `${toRow},${toCol}`
+    });
+    
+    if (!fromSquare || !toSquare) {
+      console.error('Could not find squares for opponent move:', {
+        fromRow, fromCol, toRow, toCol,
+        fromSquare, toSquare
+      });
+      return;
+    }
+    
+    // Determine the opponent's color (opposite of player's color)
+    const opponentColor = LMP.playerColor === PLAYER.WHITE ? PLAYER.BLACK : PLAYER.WHITE;
+    console.log(`Applying opponent move with color: ${opponentColor}`);
+    
+    // Disable board interaction while move is processing
+    disableBoardInteraction();
+    
+    // Use the global handlePieceMove function to do the move
+    window.handlePieceMove(fromSquare, toSquare, opponentColor)
+      .then(() => {
+        console.log('Opponent move applied successfully!');
+        
+        // If this is a promotion move, we need to handle the promotion
+        if (moveData.promotion) {
+          // Check if the promotion modal would be shown
+          const promotionModal = document.getElementById('promotion-modal');
+          if (promotionModal && promotionModal.style.display === 'flex') {
+            console.log('Handling opponent promotion to', moveData.promotion);
+            
+            // Simulate clicking the appropriate promotion piece
+            setTimeout(() => {
+              selectPromotionPiece(moveData.promotion);
+            }, 100);
+          }
+        } else {
+          // For non-promotion moves, finalize the move here
+          window.turn = LMP.playerColor;
+          checkForEndOfGame();
+          cleanupAfterMove();
+          enableBoardInteraction();
+          updateMultiplayerStatus(`Your turn`);
+        }
+      })
+      .catch(err => {
+        console.error('Error executing opponent move:', err);
+        alert('Error applying opponent move. Please try reloading the page.');
+      });
   } catch (e) {
     console.error('Error processing opponent move:', e);
+    enableBoardInteraction(); // Ensure the board remains usable
   }
 }
 
@@ -283,6 +356,9 @@ function startLocalMultiplayerGame() {
   
   // Set game started flag
   LMP.gameStarted = true;
+  
+  // Set the game mode to local multiplayer
+  window.currentGameMode = 'local';
   
   // Reset and initialize the board
   resetBoard();
@@ -304,6 +380,9 @@ function startLocalMultiplayerGame() {
   if (mpOverlay) {
     mpOverlay.style.display = 'none';
   }
+  
+  // Make local multiplayer functions available globally
+  window.sendLocalMove = sendLocalMove;
   
   console.log('Local multiplayer game started');
 }

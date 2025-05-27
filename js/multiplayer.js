@@ -831,7 +831,7 @@ function showMultiplayerUI() {
     const serverAddressInput = document.getElementById('server-address');
     const savedServerUrl = localStorage.getItem('chessServerUrl');
     if (savedServerUrl && savedServerUrl !== DEFAULT_SOCKET_SERVER_URL) {
-      serverAddressInput.value = savedServerUrl;
+    serverAddressInput.value = savedServerUrl;
     } else {
       serverAddressInput.value = ''; // Leave blank to indicate using default
     }
