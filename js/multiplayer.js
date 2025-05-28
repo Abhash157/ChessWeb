@@ -427,7 +427,9 @@ function handleOpponentMove(moveString) {
   
   try {
     // Parse the move string
-    const [piece, fromRow, fromCol, toRow, toCol] = moveString.split(',');
+    const parts = moveString.split(',');
+    // The basic move always has the first 5 parts
+    const [piece, fromRow, fromCol, toRow, toCol] = parts;
     
     // Convert to numbers
     const moveData = {
@@ -435,6 +437,13 @@ function handleOpponentMove(moveString) {
       from: { row: parseInt(fromRow), col: parseInt(fromCol) },
       to: { row: parseInt(toRow), col: parseInt(toCol) }
     };
+    
+    // Check for promotion - format would be: piece,fromRow,fromCol,toRow,toCol,promotion,pieceType
+    const isPromotion = parts.length > 5 && parts[5] === 'promotion';
+    if (isPromotion) {
+      moveData.promotion = parts[6]; // The promotion piece type (queen, rook, etc.)
+      console.log('Move includes promotion to:', moveData.promotion);
+    }
     
     console.log('Parsed opponent move:', moveData);
     
@@ -467,26 +476,132 @@ function handleOpponentMove(moveString) {
       return;
     }
     
-    // Apply the opponent's move to the local board
+    // Determine the opponent's color (opposite of player's color)
     const opponentColor = MP.playerColor === PLAYER.WHITE ? PLAYER.BLACK : PLAYER.WHITE;
-    console.log(`Applying opponent move directly with color: ${opponentColor}`);
+    console.log(`Applying opponent move with color: ${opponentColor}`);
     
     // Disable board interaction while move is processing
     disableBoardInteraction();
+    
+    // If this is a promotion move and we already know the promoted piece,
+    // we need to prepare the pendingPromotion state
+    if (isPromotion) {
+      const promotedPiece = moveData.promotion;
+      // Check if this is a pawn promotion (pawn reaching the end of the board)
+      const isPawnAtEndRow = (
+        (opponentColor === PLAYER.WHITE && parseInt(toRow) === 0) || 
+        (opponentColor === PLAYER.BLACK && parseInt(toRow) === 7)
+      );
+      
+      if (isPawnAtEndRow) {
+        console.log('Setting up pendingPromotion for opponent promotion move');
+        // Get all squares if window.squares is not available
+        const allSquares = window.squares || document.querySelectorAll('.square');
+        
+        window.pendingPromotion = {
+          fromSquare: fromSquare,
+          toSquare: toSquare,
+          playerColor: opponentColor,
+          fromIndex: Array.from(allSquares).indexOf(fromSquare),
+          toIndex: Array.from(allSquares).indexOf(toSquare),
+          moveData: {
+            from: { row: parseInt(fromRow), col: parseInt(fromCol) },
+            to: { row: parseInt(toRow), col: parseInt(toCol) },
+            pieceMovedOriginal: piece,
+            wasPromotion: true,
+            playerColor: opponentColor,
+            promotedToPieceType: moveData.promotion // Add the promotion piece type to the move data
+          }
+        };
+      }
+    }
     
     // Use the global handlePieceMove function
     window.handlePieceMove(fromSquare, toSquare, opponentColor)
       .then(() => {
         console.log('Opponent move applied successfully!');
         
-        // Update turn status to player's turn
-        window.turn = MP.playerColor;
-        
-        // Enable interaction so the player can make their move
-        enableBoardInteraction();
-        
-        // Update UI
-        updateMultiplayerStatus(`Your turn`);
+        // If this is a promotion move, wait for the promotion to complete
+        if (isPromotion) {
+          // With our new changes, the promotion modal won't be shown to the opponent
+          // So we just wait for the opponent to choose promotion piece
+          disableBoardInteraction();
+          updateMultiplayerStatus('Waiting for opponent to select promotion piece...');
+          
+          // Immediately update the piece on the board to the promoted piece
+          if (moveData.promotion) {
+            // Make sure we have access to the piece symbols, either from global window.pieces or fallback to Unicode values
+            const pieceSymbols = window.pieces || {
+              white: {
+                queen: '\u2655',
+                rook: '\u2656',
+                bishop: '\u2657',
+                knight: '\u2658',
+                pawn: '\u2659'
+              },
+              black: {
+                queen: '\u265B',
+                rook: '\u265C',
+                bishop: '\u265D',
+                knight: '\u265E',
+                pawn: '\u265F'
+              }
+            };
+            
+            const pieceSet = opponentColor === PLAYER.WHITE ? pieceSymbols.white : pieceSymbols.black;
+            let promotedPieceSymbol;
+            
+            switch(moveData.promotion) {
+              case 'queen': promotedPieceSymbol = pieceSet.queen; break;
+              case 'rook': promotedPieceSymbol = pieceSet.rook; break;
+              case 'bishop': promotedPieceSymbol = pieceSet.bishop; break;
+              case 'knight': promotedPieceSymbol = pieceSet.knight; break;
+              default: promotedPieceSymbol = pieceSet.queen; // Default to queen
+            }
+            
+            // Update the piece on the board
+            toSquare.textContent = promotedPieceSymbol;
+            console.log('Updated pawn to promoted piece:', promotedPieceSymbol);
+            
+            // Add move to game history with promotion information
+            const fromIndex = parseInt(fromRow) * 8 + parseInt(fromCol);
+            const toIndex = parseInt(toRow) * 8 + parseInt(toCol);
+            const promotionMoveData = {
+              from: { row: parseInt(fromRow), col: parseInt(fromCol) },
+              to: { row: parseInt(toRow), col: parseInt(toCol) },
+              pieceMovedOriginal: piece,
+              wasPromotion: true,
+              promotedToPieceType: moveData.promotion,
+              playerColor: opponentColor
+            };
+            
+            // Add the promotion move to the game history
+            if (window.gameState && window.gameState.moveHistory) {
+              window.gameState.moveHistory.push(promotionMoveData);
+              
+              // Update the move history display if function exists
+              if (typeof window.updateMoveHistory === 'function') {
+                window.updateMoveHistory();
+              }
+            }
+            
+            // Now that we've updated the piece, enable the board
+            window.turn = MP.playerColor;
+            if (typeof checkForEndOfGame === 'function') checkForEndOfGame();
+            if (typeof cleanupAfterMove === 'function') cleanupAfterMove();
+            enableBoardInteraction();
+            updateMultiplayerStatus(`Your turn`);
+          }
+        } else {
+          // Update turn status to player's turn
+          window.turn = MP.playerColor;
+          
+          // Enable interaction so the player can make their move
+          enableBoardInteraction();
+          
+          // Update UI
+          updateMultiplayerStatus(`Your turn`);
+        }
       })
       .catch(err => {
         console.error('Error executing opponent move:', err);
