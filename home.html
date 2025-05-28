@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chess Web - Home</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .home-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: #1e1e2e;
+      color: #cdd6f4;
+    }
+    
+    .logo {
+      margin-bottom: 2rem;
+      font-size: 3rem;
+      text-align: center;
+    }
+    
+    .logo-pieces {
+      display: flex;
+      justify-content: center;
+      font-size: 4rem;
+      margin-bottom: 1rem;
+    }
+    
+    .game-modes {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      width: 100%;
+      max-width: 300px;
+    }
+    
+    .mode-btn {
+      padding: 1rem;
+      border: none;
+      border-radius: 8px;
+      background: #313244;
+      color: #cdd6f4;
+      font-size: 1.2rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+    }
+    
+    .mode-btn:hover {
+      background: #45475a;
+      transform: translateY(-2px);
+    }
+    
+    .mode-btn:active {
+      transform: translateY(0);
+    }
+    
+    .mode-icon {
+      margin-right: 10px;
+      font-size: 1.5rem;
+    }
+    
+    .version {
+      margin-top: 2rem;
+      font-size: 0.8rem;
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body>
+  <div class="home-container">
+    <div class="logo">
+      <div class="logo-pieces">♞ ♜</div>
+      <div>Chess Web</div>
+    </div>
+    
+    <div class="game-modes">
+      <button class="mode-btn" id="vs-ai-btn">
+        <span class="mode-icon">♚</span>
+        Play vs AI
+      </button>
+      <button class="mode-btn" id="online-btn">
+        <span class="mode-icon">👥</span>
+        Play Online
+      </button>
+      <button class="mode-btn" id="local-btn">
+        <span class="mode-icon">🎮</span>
+        Local 2-Player
+      </button>
+    </div>
+    
+    <div class="version">v1.1.0</div>
+  </div>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Button click handlers
+      document.getElementById('vs-ai-btn').addEventListener('click', () => {
+        window.location.href = 'index.html?mode=ai';
+      });
+      
+      document.getElementById('online-btn').addEventListener('click', () => {
+        window.location.href = 'index.html?mode=online';
+      });
+      
+      document.getElementById('local-btn').addEventListener('click', () => {
+        window.location.href = 'index.html?mode=local';
+      });
+    });
+  </script>
+</body>
+</html> 

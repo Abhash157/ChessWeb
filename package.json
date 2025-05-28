@@ -1,0 +1,40 @@
+{
+  "name": "chessweb",
+  "version": "1.0.0",
+  "description": "Chess game web application",
+  "main": "script.js",
+  "scripts": {
+    "build": "webpack --mode production",
+    "dev": "webpack --mode development --watch",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d dist",
+    "test": "echo \"Error: no test specified\" && exit 0",
+    "start": "node server/server.js"
+  },
+  "keywords": [
+    "chess",
+    "game",
+    "stockfish",
+    "ai"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "core-js": "^3.35.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.23.9",
+    "@babel/preset-env": "^7.23.9",
+    "babel-loader": "^9.1.3",
+    "clean-webpack-plugin": "^4.0.0",
+    "copy-webpack-plugin": "^12.0.2",
+    "css-loader": "^6.10.0",
+    "css-minimizer-webpack-plugin": "^6.0.0",
+    "gh-pages": "^6.1.1",
+    "html-webpack-plugin": "^5.6.0",
+    "mini-css-extract-plugin": "^2.8.0",
+    "terser-webpack-plugin": "^5.3.10",
+    "webpack": "^5.90.3",
+    "webpack-cli": "^5.1.4"
+  }
+} 
