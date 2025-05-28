@@ -287,6 +287,18 @@ function placePieces() {
   // Reset king positions logically
   pieces.white.kingRow = 7; pieces.white.kingCol = 4;
   pieces.black.kingRow = 0; pieces.black.kingCol = 4;
+  
+  console.log("King positions initialized:");
+  console.log(`White king at [${pieces.white.kingRow}, ${pieces.white.kingCol}]`);
+  console.log(`Black king at [${pieces.black.kingRow}, ${pieces.black.kingCol}]`);
+  
+  // Verify visually
+  const whiteKingSquare = squares[pieces.white.kingRow * 8 + pieces.white.kingCol];
+  const blackKingSquare = squares[pieces.black.kingRow * 8 + pieces.black.kingCol];
+  
+  console.log("White king square contents:", whiteKingSquare.textContent);
+  console.log("Black king square contents:", blackKingSquare.textContent);
+  
   // Reset castling rights for new game
   gameState.whiteCanCastleKingside = true;
   gameState.whiteCanCastleQueenside = true;
@@ -509,14 +521,50 @@ function highlightInvalidMove(square) {
 function isSquareUnderAttack(row, col, colorOfDefender) {
   const attackerColor = colorOfDefender === PLAYER.WHITE ? PLAYER.BLACK : PLAYER.WHITE;
   const attackerPieceSet = attackerColor === PLAYER.WHITE ? pieces.white : pieces.black;
-  // const attackerSymbols = attackerColor === PLAYER.WHITE ? whitePieces : blackPieces; // Not directly used, using attackerPieceSet.pieceName
-
+  
+  const kingText = colorOfDefender === PLAYER.WHITE ? pieces.white.king : pieces.black.king;
+  const isKing = squares[row * 8 + col].textContent === kingText;
+  
+  if (isKing) {
+    console.log(`Checking if ${colorOfDefender === PLAYER.WHITE ? 'white' : 'black'} king at [${row}, ${col}] is under attack`);
+  }
+  
   // Check for pawn attacks
-  // Pawn attacks depend on the attacker's color, so the direction is relative to the attacker
-  const pawnAttackDirection = attackerColor === PLAYER.WHITE ? 1 : -1; 
-  if (row - pawnAttackDirection >= 0 && row - pawnAttackDirection < 8) { // Check squares pawn could attack FROM
-    if (col > 0 && squares[(row - pawnAttackDirection) * 8 + (col - 1)].textContent === attackerPieceSet.pawn) return true;
-    if (col < 7 && squares[(row - pawnAttackDirection) * 8 + (col + 1)].textContent === attackerPieceSet.pawn) return true;
+  // For pawn attacks, we need to look at where pawns of the attacker's color could be positioned 
+  // to attack the square at [row, col]
+  
+  // When checking if a white pawn attacks a square, we need to look at the square diagonally down from that square
+  // When checking if a black pawn attacks a square, we need to look at the square diagonally up from that square
+  const pawnAttackRows = attackerColor === PLAYER.WHITE ? [row + 1] : [row - 1];
+  
+  for (const pawnRow of pawnAttackRows) {
+    if (pawnRow >= 0 && pawnRow < 8) {
+      // Check left diagonal (from square perspective, not pawn's perspective)
+      if (col > 0) {
+        const leftDiagSquare = squares[pawnRow * 8 + (col - 1)];
+        const isPawnAttackingLeft = leftDiagSquare.textContent === attackerPieceSet.pawn;
+        
+        if (isPawnAttackingLeft) {
+          if (isKing) {
+            console.log(`King check detected from pawn! At [${pawnRow}, ${col - 1}]`);
+          }
+          return true;
+        }
+      }
+      
+      // Check right diagonal (from square perspective, not pawn's perspective)
+      if (col < 7) {
+        const rightDiagSquare = squares[pawnRow * 8 + (col + 1)];
+        const isPawnAttackingRight = rightDiagSquare.textContent === attackerPieceSet.pawn;
+        
+        if (isPawnAttackingRight) {
+          if (isKing) {
+            console.log(`King check detected from pawn! At [${pawnRow}, ${col + 1}]`);
+          }
+          return true;
+        }
+      }
+    }
   }
 
   // Check for knight attacks
@@ -525,7 +573,10 @@ function isSquareUnderAttack(row, col, colorOfDefender) {
     const newRow = row + rowOffset;
     const newCol = col + colOffset;
     if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
-      if (squares[newRow * 8 + newCol].textContent === attackerPieceSet.knight) return true;
+      if (squares[newRow * 8 + newCol].textContent === attackerPieceSet.knight) {
+        if (isKing) console.log(`King check detected from knight! At [${newRow}, ${newCol}]`);
+        return true;
+      }
     }
   }
 
@@ -535,7 +586,10 @@ function isSquareUnderAttack(row, col, colorOfDefender) {
     const newRow = row + rowOffset;
     const newCol = col + colOffset;
     if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
-      if (squares[newRow * 8 + newCol].textContent === attackerPieceSet.king) return true;
+      if (squares[newRow * 8 + newCol].textContent === attackerPieceSet.king) {
+        if (isKing) console.log(`King check detected from opposing king! At [${newRow}, ${newCol}]`);
+        return true;
+      }
     }
   }
 
@@ -547,7 +601,13 @@ function isSquareUnderAttack(row, col, colorOfDefender) {
     while (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
       const pieceOnSquare = squares[newRow * 8 + newCol].textContent;
       if (pieceOnSquare !== "") {
-        if (pieceOnSquare === attackerPieceSet.rook || pieceOnSquare === attackerPieceSet.queen) return true;
+        if (pieceOnSquare === attackerPieceSet.rook || pieceOnSquare === attackerPieceSet.queen) {
+          if (isKing) {
+            const pieceType = pieceOnSquare === attackerPieceSet.rook ? "rook" : "queen";
+            console.log(`King check detected from ${pieceType}! At [${newRow}, ${newCol}]`);
+          }
+          return true;
+        }
         break;
       }
       newRow += rowDir;
@@ -563,7 +623,13 @@ function isSquareUnderAttack(row, col, colorOfDefender) {
     while (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
       const pieceOnSquare = squares[newRow * 8 + newCol].textContent;
       if (pieceOnSquare !== "") {
-        if (pieceOnSquare === attackerPieceSet.bishop || pieceOnSquare === attackerPieceSet.queen) return true;
+        if (pieceOnSquare === attackerPieceSet.bishop || pieceOnSquare === attackerPieceSet.queen) {
+          if (isKing) {
+            const pieceType = pieceOnSquare === attackerPieceSet.bishop ? "bishop" : "queen";
+            console.log(`King check detected from ${pieceType}! At [${newRow}, ${newCol}]`);
+          }
+          return true;
+        }
         break;
       }
       newRow += rowDir;
@@ -580,6 +646,8 @@ function isSquareUnderAttack(row, col, colorOfDefender) {
  */
 function isKingInCheck(kingColor) {
   const kingData = kingColor === PLAYER.WHITE ? pieces.white : pieces.black;
+  console.log(`Checking if ${kingColor === PLAYER.WHITE ? 'white' : 'black'} king is in check at position [${kingData.kingRow}, ${kingData.kingCol}]`);
+
   if(kingData.kingRow === undefined || kingData.kingCol === undefined) {
       console.error("King position undefined for color:", kingColor, kingData);
       // Try to find the king if its position is not tracked - this is a fallback
@@ -596,7 +664,10 @@ function isKingInCheck(kingColor) {
       }
       if(kingData.kingRow === undefined) return true; // Assume check if king not found
   }
-  return isSquareUnderAttack(kingData.kingRow, kingData.kingCol, kingColor);
+  
+  const isCheck = isSquareUnderAttack(kingData.kingRow, kingData.kingCol, kingColor);
+  console.log(`Check result for ${kingColor === PLAYER.WHITE ? 'white' : 'black'} king: ${isCheck}`);
+  return isCheck;
 }
 
 // ===========================
@@ -1463,11 +1534,24 @@ function cleanupAfterMove() {
   const whiteKingSquare = squares[pieces.white.kingRow * 8 + pieces.white.kingCol];
   const blackKingSquare = squares[pieces.black.kingRow * 8 + pieces.black.kingCol];
   
-  if (isKingInCheck(PLAYER.WHITE)) whiteKingSquare.classList.add("dangerlight");
-  else whiteKingSquare.classList.remove("dangerlight");
+  console.log(`White king square at [${pieces.white.kingRow}, ${pieces.white.kingCol}]:`, whiteKingSquare);
+  console.log(`Black king square at [${pieces.black.kingRow}, ${pieces.black.kingCol}]:`, blackKingSquare);
   
-  if (isKingInCheck(PLAYER.BLACK)) blackKingSquare.classList.add("dangerlight");
-  else blackKingSquare.classList.remove("dangerlight");
+  const whiteKingInCheck = isKingInCheck(PLAYER.WHITE);
+  if (whiteKingInCheck) {
+    console.log("White king is in check! Adding dangerlight.");
+    whiteKingSquare.classList.add("dangerlight");
+  } else {
+    whiteKingSquare.classList.remove("dangerlight");
+  }
+  
+  const blackKingInCheck = isKingInCheck(PLAYER.BLACK);
+  if (blackKingInCheck) {
+    console.log("Black king is in check! Adding dangerlight.");
+    blackKingSquare.classList.add("dangerlight");
+  } else {
+    blackKingSquare.classList.remove("dangerlight");
+  }
 
   selectedSquare = null;
 }
@@ -1529,8 +1613,17 @@ async function handlePieceMove(fromSquare, toSquare, pieceColor) {
         else gameState.capturedPieces.black.push(capturedText);
     }
     
-    if (pieceText === pieces.white.king) { pieces.white.kingRow = toRow; pieces.white.kingCol = toCol; }
-    if (pieceText === pieces.black.king) { pieces.black.kingRow = toRow; pieces.black.kingCol = toCol; }
+    // Update king position if king moved
+    if (pieceText === pieces.white.king) { 
+        pieces.white.kingRow = toRow; 
+        pieces.white.kingCol = toCol;
+        console.log(`White king moved to [${toRow}, ${toCol}]`);
+    }
+    if (pieceText === pieces.black.king) { 
+        pieces.black.kingRow = toRow; 
+        pieces.black.kingCol = toCol;
+        console.log(`Black king moved to [${toRow}, ${toCol}]`);
+    }
 
     if (pieceText === (pieceColor === PLAYER.WHITE ? pieces.white.king : pieces.black.king) && Math.abs(fromCol - toCol) === 2) {
         moveData.wasCastling = true;
@@ -1634,10 +1727,12 @@ async function handlePieceMove(fromSquare, toSquare, pieceColor) {
     
     const opponentPlayerColor = (pieceColor === PLAYER.WHITE) ? PLAYER.BLACK : PLAYER.WHITE;
     if (isKingInCheck(opponentPlayerColor)) {
+        console.log(`Move resulted in CHECK for ${opponentPlayerColor === PLAYER.WHITE ? 'white' : 'black'} king!`);
         moveData.resultedInCheck = true;
         const opponentLegalMoves = getAllLegalMovesForPlayer(opponentPlayerColor);
         if (opponentLegalMoves.length === 0) {
             moveData.resultedInCheckmate = true;
+            console.log(`Move resulted in CHECKMATE for ${opponentPlayerColor === PLAYER.WHITE ? 'white' : 'black'} king!`);
         }
     }
 
@@ -1884,3 +1979,66 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log("Script: DOMContentLoaded event fired. About to call initChessApp."); // New Diagnostic E
   initChessApp();
 });
+
+// Add this after the placePieces function
+
+/**
+ * Sets up a test position with a pawn checking a king
+ */
+function setupPawnCheckTest() {
+  console.log("Setting up pawn check test position...");
+  // Clear the board
+  squares.forEach(sq => sq.textContent = '');
+  
+  // Place white king at e5 (row 3, col 4)
+  const whiteKingSquare = squares[3 * 8 + 4];
+  whiteKingSquare.textContent = pieces.white.king;
+  pieces.white.kingRow = 3;
+  pieces.white.kingCol = 4;
+  
+  // Place black pawn at d4 (row 4, col 3) - should check the white king
+  const blackPawnSquare = squares[4 * 8 + 3]; 
+  blackPawnSquare.textContent = pieces.black.pawn;
+  
+  // Place black king somewhere safe
+  const blackKingSquare = squares[7 * 8 + 4];
+  blackKingSquare.textContent = pieces.black.king;
+  pieces.black.kingRow = 7;
+  pieces.black.kingCol = 4;
+  
+  console.log("Test position set up:");
+  console.log(`White king at [${pieces.white.kingRow}, ${pieces.white.kingCol}]`);
+  console.log(`Black pawn at [4, 3]`);
+  console.log(`Black king at [${pieces.black.kingRow}, ${pieces.black.kingCol}]`);
+  
+  // Check if white king is in check (should be)
+  console.log("Testing if white king is in check from black pawn...");
+  const whiteKingInCheck = isKingInCheck(PLAYER.WHITE);
+  console.log(`White king in check: ${whiteKingInCheck}`);
+  
+  // Set turn to reflect the position
+  window.turn = PLAYER.WHITE;
+  updateGameStatus();
+  cleanupAfterMove(); // This will update the check visualization
+  
+  return whiteKingInCheck; // Return check status
+}
+
+// Add this button to the UI to test the pawn check
+function addTestButton() {
+  const container = document.querySelector('.container') || document.body;
+  const testButton = document.createElement('button');
+  testButton.textContent = 'Test Pawn Check';
+  testButton.style.padding = '10px';
+  testButton.style.margin = '10px';
+  testButton.addEventListener('click', setupPawnCheckTest);
+  container.appendChild(testButton);
+  console.log("Test button added to the UI");
+}
+
+// Update initChessApp to add the test button
+const originalInitChessApp = initChessApp;
+initChessApp = function() {
+  originalInitChessApp();
+  addTestButton();
+};
