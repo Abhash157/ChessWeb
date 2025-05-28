@@ -1003,17 +1003,31 @@ function addBackToHomeLink() {
  * Sets up the event listeners for the promotion modal choices.
  */
 function setupPromotionModal() {
-    console.log("setupPromotionModal: Entered function. promotionModal DOM element:", promotionModal); // New Diagnostic C
+    console.log("setupPromotionModal: Entered function. promotionModal DOM element:", promotionModal);
     if (!promotionModal) {
         console.error("setupPromotionModal: promotionModal element not found! Cannot set up listeners.");
         return;
     }
+    
+    // Remove any existing event listeners to prevent duplicates
     const promotionPiecesElements = promotionModal.querySelectorAll('.promotion-piece');
+    console.log(`Found ${promotionPiecesElements.length} promotion piece elements:`, promotionPiecesElements);
+    
     promotionPiecesElements.forEach(pieceElement => {
-        pieceElement.addEventListener('click', (e) => {
-            const pieceType = e.target.dataset.piece;
+        // First remove any existing event listeners (cloned node approach)
+        const newElement = pieceElement.cloneNode(true);
+        pieceElement.parentNode.replaceChild(newElement, pieceElement);
+        
+        // Add the event listener to the new element
+        newElement.addEventListener('click', (e) => {
+            const pieceType = e.currentTarget.dataset.piece;
+            console.log(`Promotion piece clicked: ${pieceType}`, e.currentTarget);
             selectPromotionPiece(pieceType);
         });
+        
+        // Add some debug styling to ensure elements are clickable
+        newElement.style.cursor = 'pointer';
+        newElement.style.pointerEvents = 'auto';
     });
 }
 
@@ -1213,17 +1227,37 @@ function updateGameStatus() {
  * @param {number} playerColor - The color of the player (PLAYER.WHITE or PLAYER.BLACK)
  */
 function handlePawnPromotion(fromSquare, toSquare, playerColor) {
+  console.log("handlePawnPromotion called:", fromSquare, toSquare, playerColor);
+  
+  // Create a basic moveData structure if it doesn't exist
+  const pieceBeingPromoted = playerColor === PLAYER.WHITE ? pieces.white.pawn : pieces.black.pawn;
+  const fromRow = parseInt(fromSquare.dataset.row);
+  const fromCol = parseInt(fromSquare.dataset.col);
+  const toRow = parseInt(toSquare.dataset.row);
+  const toCol = parseInt(toSquare.dataset.col);
+  
+  const moveData = {
+    from: { row: fromRow, col: fromCol },
+    to: { row: toRow, col: toCol },
+    pieceMovedOriginal: pieceBeingPromoted,
+    wasPromotion: true,
+    playerColor: playerColor
+  };
+  
   // Store promotion data for multiplayer
   pendingPromotion = {
     fromSquare: fromSquare,
     toSquare: toSquare,
     playerColor: playerColor,
     fromIndex: Array.from(squares).indexOf(fromSquare),
-    toIndex: Array.from(squares).indexOf(toSquare)
+    toIndex: Array.from(squares).indexOf(toSquare),
+    moveData: moveData
   };
   
+  console.log("Created pendingPromotion:", pendingPromotion);
+  
   // Show promotion selection UI
-  showPromotionModal(playerColor, parseInt(toSquare.dataset.row), parseInt(toSquare.dataset.col), pendingPromotion);
+  showPromotionModal(playerColor, toRow, toCol, pendingPromotion);
 }
 
 /**
@@ -1386,6 +1420,7 @@ function cleanupAfterMove() {
   squares.forEach(s => {
     s.classList.remove("movelight");
     s.classList.remove("takelight");
+    s.classList.remove("dangerlight");
   });
   
   // Explicitly update dangerlight based on current check status for both kings
@@ -1522,11 +1557,23 @@ async function handlePieceMove(fromSquare, toSquare, pieceColor) {
     const promotionRow = pieceColor === PLAYER.WHITE ? 0 : 7;
     if (pieceText === pawnBeingMoved && toRow === promotionRow) {
         moveData.wasPromotion = true;
+        
+        // Initialize pendingPromotion if it doesn't exist yet
+        if (!pendingPromotion) {
+            pendingPromotion = {
+                fromSquare: fromSquare,
+                toSquare: toSquare,
+                playerColor: pieceColor,
+                fromIndex: Array.from(squares).indexOf(fromSquare),
+                toIndex: Array.from(squares).indexOf(toSquare)
+            };
+        }
+        
         // Store the nearly complete moveData in pendingPromotion so selectPromotionPiece can finalize it.
         pendingPromotion.moveData = moveData; 
-        // `handlePawnPromotion` (called by `moveWhite`/`moveBlack` wrapper) will trigger `showPromotionModal`.
-        // The `showPromotionModal` itself doesn't need `moveData` passed directly if `pendingPromotion.moveData` is set.
-        // `selectPromotionPiece` will then use `pendingPromotion.moveData`.
+        
+        // Call handlePawnPromotion to show the promotion UI
+        handlePawnPromotion(fromSquare, toSquare, pieceColor);
     }
 
     if (!moveData.wasPromotion) { 
@@ -1546,6 +1593,7 @@ async function handlePieceMove(fromSquare, toSquare, pieceColor) {
     } else {
         // For promotion moves, history push is deferred to `selectPromotionPiece`
         // after the piece is chosen, so `promotedToPieceType` is known.
+        console.log("SCRIPT_LOG: handlePieceMove - Promotion move detected. History push deferred to selectPromotionPiece.");
     }
     
     const opponentPlayerColor = (pieceColor === PLAYER.WHITE) ? PLAYER.BLACK : PLAYER.WHITE;
@@ -1647,17 +1695,35 @@ async function handleBlackPieceMove(square, sqRow, sqCol) {
  * fromSquare, toSquare, playerColor, fromIndex, toIndex, and the partial moveData object.
  */
 function showPromotionModal(color, row, col) { 
+  console.log(`Showing promotion modal for ${color === PLAYER.WHITE ? 'white' : 'black'} pawn`);
+  
   const whitePromos = document.querySelectorAll('.white-promotion');
   const blackPromos = document.querySelectorAll('.black-promotion');
   
   if (color === PLAYER.WHITE) {
     whitePromos.forEach(p => p.style.display = 'block');
     blackPromos.forEach(p => p.style.display = 'none');
+    console.log('Showing white promotion options');
   } else { // PLAYER.BLACK
     whitePromos.forEach(p => p.style.display = 'none');
     blackPromos.forEach(p => p.style.display = 'block');
+    console.log('Showing black promotion options');
   }
+  
+  // Ensure modal is properly displayed and clickable
   promotionModal.style.display = 'flex';
+  promotionModal.style.zIndex = '9999';
+  promotionModal.style.pointerEvents = 'auto';
+  
+  // Ensure the promotion pieces are clickable
+  document.querySelectorAll('.promotion-piece').forEach(piece => {
+    piece.style.pointerEvents = 'auto';
+    piece.style.cursor = 'pointer';
+    console.log(`Set promotion piece ${piece.dataset.piece} to be clickable`);
+  });
+  
+  // Log to confirm modal is shown
+  console.log('Promotion modal shown:', promotionModal.style.display);
 }
 
 

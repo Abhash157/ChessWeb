@@ -4,8 +4,6 @@
  * Used as a fallback when WebSocket connection fails
  */
 
-import { checkGameStatus } from "./moveHandler";
-
 // Local Multiplayer State
 const LMP = {
   playerId: null,
@@ -195,7 +193,11 @@ function sendLocalMove(moveData) {
   
   // Update local turn status - switch to opponent's turn
   window.turn = LMP.playerColor === PLAYER.WHITE ? PLAYER.BLACK : PLAYER.WHITE;
-  checkGameStatus();
+  
+  // Check for check/checkmate status
+  checkForEndOfGame();
+  cleanupAfterMove(); 
+  
   disableBoardInteraction(); // Disable board until opponent moves
   
   // Update UI to show waiting for opponent
@@ -269,7 +271,8 @@ function handleLocalOpponentMove(moveString) {
     };
     
     // Check for promotion - format would be: piece,fromRow,fromCol,toRow,toCol,promotion,pieceType
-    if (parts.length > 5 && parts[5] === 'promotion') {
+    const isPromotion = parts.length > 5 && parts[5] === 'promotion';
+    if (isPromotion) {
       moveData.promotion = parts[6]; // The promotion piece type (queen, rook, etc.)
       console.log('Move includes promotion to:', moveData.promotion);
     }
@@ -312,14 +315,43 @@ function handleLocalOpponentMove(moveString) {
     // Disable board interaction while move is processing
     disableBoardInteraction();
     
+    // If this is a pawn promotion move and we already know the promoted piece,
+    // we need to prepare the pendingPromotion state
+    if (isPromotion) {
+      const promotedPiece = moveData.promotion;
+      // Check if this is a pawn promotion (pawn reaching the end of the board)
+      const isPawnAtEndRow = (
+        (opponentColor === PLAYER.WHITE && parseInt(toRow) === 0) || 
+        (opponentColor === PLAYER.BLACK && parseInt(toRow) === 7)
+      );
+      
+      if (isPawnAtEndRow) {
+        console.log('Setting up pendingPromotion for opponent promotion move');
+        window.pendingPromotion = {
+          fromSquare: fromSquare,
+          toSquare: toSquare,
+          playerColor: opponentColor,
+          fromIndex: Array.from(window.squares).indexOf(fromSquare),
+          toIndex: Array.from(window.squares).indexOf(toSquare),
+          moveData: {
+            from: { row: parseInt(fromRow), col: parseInt(fromCol) },
+            to: { row: parseInt(toRow), col: parseInt(toCol) },
+            pieceMovedOriginal: piece,
+            wasPromotion: true,
+            playerColor: opponentColor
+          }
+        };
+      }
+    }
+    
     // Use the global handlePieceMove function to do the move
     window.handlePieceMove(fromSquare, toSquare, opponentColor)
       .then(() => {
         console.log('Opponent move applied successfully!');
         
-        // If this is a promotion move, we need to handle the promotion
-        if (moveData.promotion) {
-          // Check if the promotion modal would be shown
+        // If this is a promotion move and promotion modal is shown, we need to handle it
+        if (isPromotion) {
+          // Check if the promotion modal is shown
           const promotionModal = document.getElementById('promotion-modal');
           if (promotionModal && promotionModal.style.display === 'flex') {
             console.log('Handling opponent promotion to', moveData.promotion);
@@ -328,6 +360,13 @@ function handleLocalOpponentMove(moveString) {
             setTimeout(() => {
               selectPromotionPiece(moveData.promotion);
             }, 100);
+          } else {
+            // If modal is not shown but this was a promotion, finalize the move ourselves
+            window.turn = LMP.playerColor;
+            checkForEndOfGame();
+            cleanupAfterMove();
+            enableBoardInteraction();
+            updateMultiplayerStatus(`Your turn`);
           }
         } else {
           // For non-promotion moves, finalize the move here
