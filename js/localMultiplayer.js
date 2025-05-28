@@ -252,14 +252,16 @@ function handleLocalRoomJoined(data) {
  * @param {string} moveString - Move in format 'piece,fromRow,fromCol,toRow,toCol[,promotion,pieceType]'
  */
 function handleLocalOpponentMove(moveString) {
-  if (!LMP.gameStarted) return;
+  if (!LMP.gameStarted) {
+    console.error('Received opponent move but game not started!');
+    return;
+  }
   
-  console.log('Received move from opponent locally:', moveString);
+  console.log('Received move from local opponent:', moveString);
   
   try {
-    // Split the move string
+    // Parse the move string
     const parts = moveString.split(',');
-    
     // The basic move always has the first 5 parts
     const [piece, fromRow, fromCol, toRow, toCol] = parts;
     
@@ -277,7 +279,7 @@ function handleLocalOpponentMove(moveString) {
       console.log('Move includes promotion to:', moveData.promotion);
     }
     
-    console.log('Parsed opponent move:', moveData);
+    console.log('Parsed local opponent move:', moveData);
     
     // Save the move for reference
     LMP.lastReceivedMove = moveData;
@@ -293,18 +295,8 @@ function handleLocalOpponentMove(moveString) {
     const fromSquare = board.querySelector(`.square[data-row="${fromRow}"][data-col="${fromCol}"]`);
     const toSquare = board.querySelector(`.square[data-row="${toRow}"][data-col="${toCol}"]`);
     
-    console.log('Opponent move squares:', {
-      from: fromSquare,
-      to: toSquare,
-      fromCoords: `${fromRow},${fromCol}`,
-      toCoords: `${toRow},${toCol}`
-    });
-    
     if (!fromSquare || !toSquare) {
-      console.error('Could not find squares for opponent move:', {
-        fromRow, fromCol, toRow, toCol,
-        fromSquare, toSquare
-      });
+      console.error('Could not find squares for opponent move');
       return;
     }
     
@@ -315,7 +307,7 @@ function handleLocalOpponentMove(moveString) {
     // Disable board interaction while move is processing
     disableBoardInteraction();
     
-    // If this is a pawn promotion move and we already know the promoted piece,
+    // If this is a promotion move and we already know the promoted piece,
     // we need to prepare the pendingPromotion state
     if (isPromotion) {
       const promotedPiece = moveData.promotion;
@@ -327,18 +319,22 @@ function handleLocalOpponentMove(moveString) {
       
       if (isPawnAtEndRow) {
         console.log('Setting up pendingPromotion for opponent promotion move');
+        // Get all squares if window.squares is not available
+        const allSquares = window.squares || document.querySelectorAll('.square');
+        
         window.pendingPromotion = {
           fromSquare: fromSquare,
           toSquare: toSquare,
           playerColor: opponentColor,
-          fromIndex: Array.from(window.squares).indexOf(fromSquare),
-          toIndex: Array.from(window.squares).indexOf(toSquare),
+          fromIndex: Array.from(allSquares).indexOf(fromSquare),
+          toIndex: Array.from(allSquares).indexOf(toSquare),
           moveData: {
             from: { row: parseInt(fromRow), col: parseInt(fromCol) },
             to: { row: parseInt(toRow), col: parseInt(toCol) },
             pieceMovedOriginal: piece,
             wasPromotion: true,
-            playerColor: opponentColor
+            playerColor: opponentColor,
+            promotedToPieceType: moveData.promotion // Add the promotion piece type to the move data
           }
         };
       }
@@ -351,17 +347,69 @@ function handleLocalOpponentMove(moveString) {
         
         // If this is a promotion move and promotion modal is shown, we need to handle it
         if (isPromotion) {
-          // Check if the promotion modal is shown
-          const promotionModal = document.getElementById('promotion-modal');
-          if (promotionModal && promotionModal.style.display === 'flex') {
-            console.log('Handling opponent promotion to', moveData.promotion);
+          // With our new changes, the promotion modal won't be shown to the opponent
+          // So we just wait for the opponent to choose promotion piece
+          disableBoardInteraction();
+          updateMultiplayerStatus('Waiting for opponent to select promotion piece...');
+          
+          // Immediately update the piece on the board to the promoted piece
+          if (moveData.promotion) {
+            // Make sure we have access to the piece symbols, either from global window.pieces or fallback to Unicode values
+            const pieceSymbols = window.pieces || {
+              white: {
+                queen: '\u2655',
+                rook: '\u2656',
+                bishop: '\u2657',
+                knight: '\u2658',
+                pawn: '\u2659'
+              },
+              black: {
+                queen: '\u265B',
+                rook: '\u265C',
+                bishop: '\u265D',
+                knight: '\u265E',
+                pawn: '\u265F'
+              }
+            };
             
-            // Simulate clicking the appropriate promotion piece
-            setTimeout(() => {
-              selectPromotionPiece(moveData.promotion);
-            }, 100);
-          } else {
-            // If modal is not shown but this was a promotion, finalize the move ourselves
+            const pieceSet = opponentColor === PLAYER.WHITE ? pieceSymbols.white : pieceSymbols.black;
+            let promotedPieceSymbol;
+            
+            switch(moveData.promotion) {
+              case 'queen': promotedPieceSymbol = pieceSet.queen; break;
+              case 'rook': promotedPieceSymbol = pieceSet.rook; break;
+              case 'bishop': promotedPieceSymbol = pieceSet.bishop; break;
+              case 'knight': promotedPieceSymbol = pieceSet.knight; break;
+              default: promotedPieceSymbol = pieceSet.queen; // Default to queen
+            }
+            
+            // Update the piece on the board
+            toSquare.textContent = promotedPieceSymbol;
+            console.log('Updated pawn to promoted piece:', promotedPieceSymbol);
+            
+            // Add move to game history with promotion information
+            const fromIndex = parseInt(fromRow) * 8 + parseInt(fromCol);
+            const toIndex = parseInt(toRow) * 8 + parseInt(toCol);
+            const promotionMoveData = {
+              from: { row: parseInt(fromRow), col: parseInt(fromCol) },
+              to: { row: parseInt(toRow), col: parseInt(toCol) },
+              pieceMovedOriginal: piece,
+              wasPromotion: true,
+              promotedToPieceType: moveData.promotion,
+              playerColor: opponentColor
+            };
+            
+            // Add the promotion move to the game history
+            if (window.gameState && window.gameState.moveHistory) {
+              window.gameState.moveHistory.push(promotionMoveData);
+              
+              // Update the move history display if function exists
+              if (typeof window.updateMoveHistory === 'function') {
+                window.updateMoveHistory();
+              }
+            }
+            
+            // Now that we've updated the piece, enable the board
             window.turn = LMP.playerColor;
             checkForEndOfGame();
             cleanupAfterMove();

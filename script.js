@@ -98,6 +98,9 @@ const pieces = {
   },
 };
 
+// Make pieces globally available for multiplayer modules
+window.pieces = pieces;
+
 const whitePieces = [
   pieces.white.king,
   pieces.white.queen,
@@ -243,6 +246,7 @@ function createChessboard() {
   }
   console.log("Number of squares created and appended in createChessboard:", DIsquareCount); // Diagnostic 3
   squares = document.querySelectorAll('.square'); 
+  window.squares = squares; // Make squares globally accessible for multiplayer modules
   console.log("Number of .square elements found by querySelectorAll after createChessboard:", squares.length); // Diagnostic 4
 }
 
@@ -920,7 +924,8 @@ function initChessApp() {
   createChessboard();
   placePieces();
   squares = document.querySelectorAll('.square');
-
+  window.squares = squares; // Make sure squares is available globally
+  
   // Update the central state with the square DOM elements
   // if (typeof window.updateState === 'function') {
   //   window.updateState({ squares: Array.from(squares) }); // Use Array.from to store a plain array
@@ -1020,10 +1025,29 @@ function setupPromotionModal() {
         
         // Add the event listener to the new element
         newElement.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
             const pieceType = e.currentTarget.dataset.piece;
             console.log(`Promotion piece clicked: ${pieceType}`, e.currentTarget);
-            selectPromotionPiece(pieceType);
+            
+            // Check for pendingPromotion in both local and window scope
+            if (window.pendingPromotion) {
+                console.log("Using window.pendingPromotion:", window.pendingPromotion);
+                selectPromotionPiece(pieceType);
+            } else if (pendingPromotion) {
+                console.log("Using local pendingPromotion:", pendingPromotion);
+                // Ensure window.pendingPromotion is set
+                window.pendingPromotion = pendingPromotion;
+                selectPromotionPiece(pieceType);
+            } else {
+                console.error("Promotion piece clicked but pendingPromotion is missing!");
+                promotionModal.style.display = 'none';
+            }
         });
+        
+        // Remove onclick attribute to prevent double calls
+        newElement.removeAttribute('onclick');
         
         // Add some debug styling to ensure elements are clickable
         newElement.style.cursor = 'pointer';
@@ -1254,7 +1278,11 @@ function handlePawnPromotion(fromSquare, toSquare, playerColor) {
     moveData: moveData
   };
   
+  // Always set window.pendingPromotion for global access
+  window.pendingPromotion = pendingPromotion;
+  
   console.log("Created pendingPromotion:", pendingPromotion);
+  console.log("Created window.pendingPromotion:", window.pendingPromotion);
   
   // Show promotion selection UI
   showPromotionModal(playerColor, toRow, toCol, pendingPromotion);
@@ -1265,14 +1293,20 @@ function handlePawnPromotion(fromSquare, toSquare, playerColor) {
  * @param {string} pieceType - The type of piece to promote to (queen, rook, bishop, knight)
  */
 function selectPromotionPiece(pieceType) {
-  if (!pendingPromotion || !pendingPromotion.moveData) {
-    console.error("Pending promotion or moveData is missing.");
+  // First check the window global, then fall back to the local variable
+  const promotion = window.pendingPromotion || pendingPromotion;
+  
+  if (!promotion || !promotion.moveData) {
+    console.log("Pending promotion or moveData is missing.");
+    console.log("window.pendingPromotion:", window.pendingPromotion);
+    console.log("local pendingPromotion:", pendingPromotion);
+    
     // Gracefully hide modal if something went wrong
     promotionModal.style.display = 'none';
     return;
   }
   
-  const { fromSquare, toSquare, playerColor, fromIndex, toIndex, moveData } = pendingPromotion;
+  const { fromSquare, toSquare, playerColor, fromIndex, toIndex, moveData } = promotion;
   const pieceSet = playerColor === PLAYER.WHITE ? pieces.white : pieces.black;
   
   let promotedPieceSymbol;
@@ -1286,14 +1320,16 @@ function selectPromotionPiece(pieceType) {
   
   // Update the board with the chosen piece
   toSquare.textContent = promotedPieceSymbol;
+  console.log(`Updated board with promoted piece ${pieceType} (${promotedPieceSymbol}) at row ${toSquare.dataset.row}, col ${toSquare.dataset.col}`);
   
   // Finalize the moveData that was started in handlePieceMove
   moveData.promotedToPieceType = pieceType;
-  // Ensure the pieceMovedOriginal in moveData is the pawn, if it was overwritten by a bug.
-  // (handlePieceMove should set pieceMovedOriginal correctly as the pawn initially).
-
+  
   // Push the now completed promotion move to history
   gameState.moveHistory.push(moveData);
+  
+  // Update move history display to include the promotion
+  updateMoveHistory();
 
   // For online multiplayer mode
   if (currentGameMode === GAME_MODE.ONLINE && window.MP && window.MP.onlineModeActive && typeof window.sendMove === 'function') {
@@ -1301,12 +1337,22 @@ function selectPromotionPiece(pieceType) {
       fromIndex: fromIndex, // from pendingPromotion
       toIndex: toIndex,     // from pendingPromotion
       promotion: pieceType,
-      from: { row: Math.floor(fromIndex / 8), col: fromIndex % 8 },
-      to: { row: Math.floor(toIndex / 8), col: toIndex % 8 },
+      from: { row: parseInt(fromSquare.dataset.row), col: parseInt(fromSquare.dataset.col) },
+      to: { row: parseInt(toSquare.dataset.row), col: parseInt(toSquare.dataset.col) },
       piece: moveData.pieceMovedOriginal
     };
     console.log("Sending promotion choice to opponent:", onlinePromotionData);
-    window.sendMove(onlinePromotionData);
+    // Create a move string that includes promotion info
+    const { from, to, piece } = onlinePromotionData;
+    const moveString = `${piece},${from.row},${from.col},${to.row},${to.col},promotion,${pieceType}`;
+    
+    // Send the promotion move
+    window.MP.socket.emit('make_move', {
+      roomId: window.MP.roomId,
+      move: moveString
+    });
+    
+    console.log(`Promotion move sent to server: ${moveString}`);
   }
   
   // For local multiplayer mode
@@ -1315,8 +1361,8 @@ function selectPromotionPiece(pieceType) {
       fromIndex: fromIndex,
       toIndex: toIndex,
       promotion: pieceType,
-      from: { row: Math.floor(fromIndex / 8), col: fromIndex % 8 },
-      to: { row: Math.floor(toIndex / 8), col: toIndex % 8 },
+      from: { row: parseInt(fromSquare.dataset.row), col: parseInt(fromSquare.dataset.col) },
+      to: { row: parseInt(toSquare.dataset.row), col: parseInt(toSquare.dataset.col) },
       piece: moveData.pieceMovedOriginal
     };
     console.log("Sending local promotion choice to opponent:", localPromotionData);
@@ -1324,6 +1370,7 @@ function selectPromotionPiece(pieceType) {
   }
   
   // Clean up promotion state
+  window.pendingPromotion = null;
   pendingPromotion = null; // Clear pendingPromotion
   promotionModal.style.display = 'none';
   
@@ -1338,38 +1385,27 @@ function selectPromotionPiece(pieceType) {
   } else {
     console.warn("SCRIPT_LOG: selectPromotionPiece - window.updateState is not a function. AI might not get correct turn.");
   }
-  updateClockDisplay(); // Update clock display with the new active player
-  // switchClock(); // Original call replaced
+  updateClockDisplay();
   
-  // Update game state after promotion and turn switch
-  const opponentColorNow = window.turn; // Current turn is now the opponent
-  if (isKingInCheck(opponentColorNow)) {
-      moveData.resultedInCheck = true; // Update the original moveData object
-      const opponentLegalMoves = getAllLegalMovesForPlayer(opponentColorNow);
-      if (opponentLegalMoves.length === 0) {
-          moveData.resultedInCheckmate = true; // Update the original moveData object
-      }
-  } else {
-      moveData.resultedInCheck = false;
-      moveData.resultedInCheckmate = false;
-  }
-
-  updateMoveHistory(); // Update history display with algebraic notation including promotion
-  checkForEndOfGame(); // This will call updateGameStatus and handle check/checkmate
-  cleanupAfterMove(); // Clear selection highlights, update danger lights etc.
-  
-  // AI Turn Check if applicable
-  console.log(`SCRIPT_LOG: selectPromotionPiece - After promotion. Current game mode: ${currentGameMode}, AI Active: ${window.aiActive}, Current turn: ${window.turn}, AI Color: ${window.aiColor}, Game Over: ${gameState.gameOver}`);
-  if (currentGameMode === GAME_MODE.AI && window.aiActive && window.turn === window.aiColor && !gameState.gameOver) {
-    if (typeof checkAITurn === 'function') {
-        console.log("SCRIPT_LOG: selectPromotionPiece - Conditions met for AI turn. Calling checkAITurn.");
-        setTimeout(checkAITurn, 100); // Small delay for UI to catch up
+  // Update game status and UI for both players in multiplayer games
+  // After a promotion is completed, we need to update the board state and re-enable interaction
+  if (currentGameMode === GAME_MODE.ONLINE || currentGameMode === 'local') {
+    // For the player whose turn it is now (the opponent of the promoter)
+    if ((window.MP && window.MP.playerColor === newTurn) || 
+        (window.LMP && window.LMP.playerColor === newTurn)) {
+      // It's your turn now
+      enableBoardInteraction();
+      updateMultiplayerStatus(`Your turn`);
     } else {
-        console.error("SCRIPT_LOG: selectPromotionPiece - checkAITurn function not found!");
+      // You've just promoted, now waiting for opponent
+      disableBoardInteraction();
+      updateMultiplayerStatus(`Waiting for opponent to make a move...`);
     }
-  } else {
-    console.log("SCRIPT_LOG: selectPromotionPiece - Conditions NOT met for AI turn after promotion.");
   }
+  
+  // Check for endgame conditions
+  checkForEndOfGame();
+  cleanupAfterMove();
 }
 
 
@@ -1696,6 +1732,21 @@ async function handleBlackPieceMove(square, sqRow, sqCol) {
  */
 function showPromotionModal(color, row, col) { 
   console.log(`Showing promotion modal for ${color === PLAYER.WHITE ? 'white' : 'black'} pawn`);
+  
+  // Make sure pendingPromotion is accessible through the window object
+  window.pendingPromotion = pendingPromotion;
+  console.log("Window pendingPromotion set:", window.pendingPromotion);
+  
+  // Only show the promotion modal to the player who is actually making the promotion
+  // In multiplayer, check if this promotion is by the current player or the opponent
+  if ((currentGameMode === GAME_MODE.ONLINE && window.MP && window.MP.playerColor !== color) || 
+      (currentGameMode === 'local' && window.LMP && window.LMP.playerColor !== color)) {
+    console.log('Not showing promotion modal for opponent promotion');
+    // For opponent promotions, just show a waiting message
+    updateMultiplayerStatus(`Waiting for opponent to choose promotion piece...`);
+    promotionModal.style.display = 'none'; // Ensure it's hidden for the non-promoting player
+    return; // Don't show the modal
+  }
   
   const whitePromos = document.querySelectorAll('.white-promotion');
   const blackPromos = document.querySelectorAll('.black-promotion');
