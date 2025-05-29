@@ -1817,7 +1817,7 @@ function handleGameEnd(data) {
     
     document.getElementById('mp-exit-game').addEventListener('click', () => {
       leaveMultiplayerMode();
-      window.location.href = 'home.html';
+      window.location.href = 'index.html';
     });
   }
 }

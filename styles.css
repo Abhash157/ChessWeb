@@ -112,14 +112,16 @@ body {
 
 /* Chess Clocks */
 .clocks-container {
-  display: flex;
-  justify-content: space-between;
+  display: none !important;
+  visibility: hidden !important;
   margin-top: 10px;
+  height: 0 !important;
+  overflow: hidden !important;
 }
 
 .white-clock, .black-clock {
-  display: flex;
-  align-items: center;
+  display: none !important;
+  visibility: hidden !important;
   padding: 8px 12px;
   border-radius: 4px;
   background-color: #ffffff;

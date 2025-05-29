@@ -1054,7 +1054,7 @@ function addBackToHomeLink() {
   if (!document.getElementById('back-to-home')) {
     const backLink = document.createElement('a');
     backLink.id = 'back-to-home';
-    backLink.href = 'home.html';
+    backLink.href = 'index.html';
     backLink.textContent = '← Back to Home';
     backLink.className = 'back-link';
     
