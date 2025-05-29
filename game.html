@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chess Game</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <div class="game-container">
+        <div class="board-container">
+          <div id="chessboard" class="chessboard"></div>
+          <div class="clocks-container">
+            <div class="white-clock">
+              <div class="clock-icon">♔</div>
+              <div id="white-time" class="time-display">10:00</div>
+            </div>
+            <div class="black-clock">
+              <div class="clock-icon">♚</div>
+              <div id="black-time" class="time-display">10:00</div>
+            </div>
+          </div>
+        </div>
+        <div class="game-info">
+          <div class="status-container">
+            <div id="game-status" class="game-status">White to move</div>
+            <button id="undo-button" class="control-button">Undo Move</button>
+          </div>
+          <div class="captured-pieces">
+            <div class="captured-container">
+              <div class="captured-label">White Captured:</div>
+              <div id="white-captured" class="piece-list"></div>
+            </div>
+            <div class="captured-container">
+              <div class="captured-label">Black Captured:</div>
+              <div id="black-captured" class="piece-list"></div>
+            </div>
+          </div>
+          <div class="move-history-container">
+            <div class="move-history-label">Moves:</div>
+            <div id="move-list" class="move-list"></div>
+          </div>
+          <div class="ai-controls">
+            <div class="ai-control-label">AI Controls:</div>
+            <div class="ai-settings">
+              <div class="setting-row">
+                <label for="ai-toggle">Enable AI:</label>
+                <input type="checkbox" id="ai-toggle">
+              </div>
+              <div class="setting-row">
+                <label for="ai-color">AI Plays as:</label>
+                <select id="ai-color">
+                  <option value="black">Black</option>
+                  <option value="white">White</option>
+                </select>
+              </div>
+              <div class="setting-row">
+                <label for="ai-difficulty">Difficulty:</label>
+                <input type="range" id="ai-difficulty" min="1" max="15" value="10">
+                <span id="difficulty-value">10</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="debug" class="debug"></div>
+      <div id="promotion-modal" class="promotion-modal">
+        <div class="promotion-container">
+          <div class="promotion-title">Choose Promotion</div>
+          <div class="promotion-pieces">
+            <div class="promotion-piece white-promotion" data-piece="queen">♕</div>
+            <div class="promotion-piece white-promotion" data-piece="rook">♖</div>
+            <div class="promotion-piece white-promotion" data-piece="bishop">♗</div>
+            <div class="promotion-piece white-promotion" data-piece="knight">♘</div>
+            <div class="promotion-piece black-promotion" data-piece="queen">♛</div>
+            <div class="promotion-piece black-promotion" data-piece="rook">♜</div>
+            <div class="promotion-piece black-promotion" data-piece="bishop">♝</div>
+            <div class="promotion-piece black-promotion" data-piece="knight">♞</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script src="js/ai.js"></script>
+    <script src="js/multiplayer.js"></script>
+    <script>
+      // Initialize AI controls
+      document.addEventListener('DOMContentLoaded', () => {
+        const aiToggle = document.getElementById('ai-toggle');
+        const aiColor = document.getElementById('ai-color');
+        const aiDifficulty = document.getElementById('ai-difficulty');
+        const difficultyValue = document.getElementById('difficulty-value');
+        
+        // Initialize AI settings
+        aiToggle.addEventListener('change', () => {
+          toggleAI(aiToggle.checked);
+          
+          // If AI is turned on and it's the AI's turn, make a move
+          if (aiToggle.checked && turn === aiColor) {
+            checkAITurn();
+          }
+        });
+        
+        aiColor.addEventListener('change', () => {
+          setAIColor(aiColor.value === 'white' ? PLAYER.WHITE : PLAYER.BLACK);
+        });
+        
+        aiDifficulty.addEventListener('input', () => {
+          const level = parseInt(aiDifficulty.value);
+          setAIDifficulty(level);
+          difficultyValue.textContent = level;
+        });
+        
+        // Update the display when sliders change
+        aiDifficulty.addEventListener('input', () => {
+          difficultyValue.textContent = aiDifficulty.value;
+        });
+        
+        // Check URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const modeParam = urlParams.get('mode');
+        
+        // Hide AI controls if in online mode
+        if (modeParam === 'online') {
+          document.querySelector('.ai-controls').style.display = 'none';
+        }
+      });
+    </script>
+  </body>
+</html> 
