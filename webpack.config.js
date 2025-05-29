@@ -65,7 +65,7 @@ module.exports = (env, argv) => {
       new HtmlWebpackPlugin({
         template: './index.html',
         filename: 'index.html',
-        chunks: ['main', 'ai', 'multiplayer'],
+        chunks: ['main'],
         minify: isProduction ? {
           collapseWhitespace: true,
           removeComments: true,
@@ -76,9 +76,9 @@ module.exports = (env, argv) => {
         } : false
       }),
       new HtmlWebpackPlugin({
-        template: './home.html',
-        filename: 'home.html',
-        chunks: ['main'],
+        template: './game.html',
+        filename: 'game.html',
+        chunks: ['main', 'ai', 'multiplayer'],
         minify: isProduction ? {
           collapseWhitespace: true,
           removeComments: true,
