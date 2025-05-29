@@ -213,7 +213,8 @@ function resetClock() {
   stopClock();
   CLOCK.whiteTime = CLOCK.initialTime;
   CLOCK.blackTime = CLOCK.initialTime;
-  CLOCK.activePlayer = PLAYER.WHITE;
+  CLOCK.activePlayer = PLAYER.WHITE; // Reset to white's turn
+  CLOCK.isRunning = false;
   updateClockDisplay();
 }
 
@@ -586,10 +587,7 @@ function isSquareUnderAttack(row, col, colorOfDefender) {
     const newRow = row + rowOffset;
     const newCol = col + colOffset;
     if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
-      if (squares[newRow * 8 + newCol].textContent === attackerPieceSet.king) {
-        if (isKing) console.log(`King check detected from opposing king! At [${newRow}, ${newCol}]`);
-        return true;
-      }
+      if (squares[newRow * 8 + newCol].textContent === attackerPieceSet.king) return true;
     }
   }
 
@@ -601,13 +599,7 @@ function isSquareUnderAttack(row, col, colorOfDefender) {
     while (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
       const pieceOnSquare = squares[newRow * 8 + newCol].textContent;
       if (pieceOnSquare !== "") {
-        if (pieceOnSquare === attackerPieceSet.rook || pieceOnSquare === attackerPieceSet.queen) {
-          if (isKing) {
-            const pieceType = pieceOnSquare === attackerPieceSet.rook ? "rook" : "queen";
-            console.log(`King check detected from ${pieceType}! At [${newRow}, ${newCol}]`);
-          }
-          return true;
-        }
+        if (pieceOnSquare === attackerPieceSet.rook || pieceOnSquare === attackerPieceSet.queen) return true;
         break;
       }
       newRow += rowDir;
@@ -623,13 +615,7 @@ function isSquareUnderAttack(row, col, colorOfDefender) {
     while (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
       const pieceOnSquare = squares[newRow * 8 + newCol].textContent;
       if (pieceOnSquare !== "") {
-        if (pieceOnSquare === attackerPieceSet.bishop || pieceOnSquare === attackerPieceSet.queen) {
-          if (isKing) {
-            const pieceType = pieceOnSquare === attackerPieceSet.bishop ? "bishop" : "queen";
-            console.log(`King check detected from ${pieceType}! At [${newRow}, ${newCol}]`);
-          }
-          return true;
-        }
+        if (pieceOnSquare === attackerPieceSet.bishop || pieceOnSquare === attackerPieceSet.queen) return true;
         break;
       }
       newRow += rowDir;
@@ -985,8 +971,7 @@ function getAllLegalMovesForPlayer(playerColor) {
 // ===========================
 
 /**
- * Entry point for the Chess application
- * Initializes the board and sets up event listeners
+ * Initializes the chess application
  */
 function initChessApp() {
   console.log("initChessApp: Entered function."); // New Diagnostic A
@@ -996,6 +981,10 @@ function initChessApp() {
   placePieces();
   squares = document.querySelectorAll('.square');
   window.squares = squares; // Make sure squares is available globally
+  
+  // Initialize the chess clock
+  resetClock();
+  updateClockDisplay();
   
   // Update the central state with the square DOM elements
   // if (typeof window.updateState === 'function') {
@@ -1708,14 +1697,18 @@ async function handlePieceMove(fromSquare, toSquare, pieceColor) {
     if (!moveData.wasPromotion) { 
         const newTurn = (pieceColor === PLAYER.WHITE) ? PLAYER.BLACK : PLAYER.WHITE;
         window.turn = newTurn; // For legacy use within script.js, if any
-        CLOCK.activePlayer = newTurn; // Directly set clock's active player
+        
+        // Update the clock's active player and switch the timer
+        CLOCK.activePlayer = newTurn;
+        if (CLOCK.isRunning) {
+            updateClockDisplay();
+        }
 
         // Update turn state and check if AI should move
         if (window.aiActive && engineReady && newTurn === window.aiColor && !gameState.gameOver) {
             console.log(`Turn changed to ${newTurn === PLAYER.WHITE ? 'White' : 'Black'}, requesting AI move...`);
             requestAIMove();
         }
-        updateClockDisplay(); // Update clock display with the new active player
         // switchClock(); // Original call replaced by direct CLOCK.activePlayer set and updateClockDisplay()
 
         gameState.moveHistory.push(moveData); // Push non-promotion moves here
@@ -1979,66 +1972,3 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log("Script: DOMContentLoaded event fired. About to call initChessApp."); // New Diagnostic E
   initChessApp();
 });
-
-// Add this after the placePieces function
-
-/**
- * Sets up a test position with a pawn checking a king
- */
-function setupPawnCheckTest() {
-  console.log("Setting up pawn check test position...");
-  // Clear the board
-  squares.forEach(sq => sq.textContent = '');
-  
-  // Place white king at e5 (row 3, col 4)
-  const whiteKingSquare = squares[3 * 8 + 4];
-  whiteKingSquare.textContent = pieces.white.king;
-  pieces.white.kingRow = 3;
-  pieces.white.kingCol = 4;
-  
-  // Place black pawn at d4 (row 4, col 3) - should check the white king
-  const blackPawnSquare = squares[4 * 8 + 3]; 
-  blackPawnSquare.textContent = pieces.black.pawn;
-  
-  // Place black king somewhere safe
-  const blackKingSquare = squares[7 * 8 + 4];
-  blackKingSquare.textContent = pieces.black.king;
-  pieces.black.kingRow = 7;
-  pieces.black.kingCol = 4;
-  
-  console.log("Test position set up:");
-  console.log(`White king at [${pieces.white.kingRow}, ${pieces.white.kingCol}]`);
-  console.log(`Black pawn at [4, 3]`);
-  console.log(`Black king at [${pieces.black.kingRow}, ${pieces.black.kingCol}]`);
-  
-  // Check if white king is in check (should be)
-  console.log("Testing if white king is in check from black pawn...");
-  const whiteKingInCheck = isKingInCheck(PLAYER.WHITE);
-  console.log(`White king in check: ${whiteKingInCheck}`);
-  
-  // Set turn to reflect the position
-  window.turn = PLAYER.WHITE;
-  updateGameStatus();
-  cleanupAfterMove(); // This will update the check visualization
-  
-  return whiteKingInCheck; // Return check status
-}
-
-// Add this button to the UI to test the pawn check
-function addTestButton() {
-  const container = document.querySelector('.container') || document.body;
-  const testButton = document.createElement('button');
-  testButton.textContent = 'Test Pawn Check';
-  testButton.style.padding = '10px';
-  testButton.style.margin = '10px';
-  testButton.addEventListener('click', setupPawnCheckTest);
-  container.appendChild(testButton);
-  console.log("Test button added to the UI");
-}
-
-// Update initChessApp to add the test button
-const originalInitChessApp = initChessApp;
-initChessApp = function() {
-  originalInitChessApp();
-  addTestButton();
-};

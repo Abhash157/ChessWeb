@@ -89,6 +89,11 @@ export function stopClock() {
 export function switchClock() {
   CLOCK.activePlayer = CLOCK.activePlayer === PLAYER.WHITE ? PLAYER.BLACK : PLAYER.WHITE;
   updateClockDisplay();
+  
+  // Ensure the clock is running when switching players during a game
+  if (!CLOCK.isRunning && !gameState.gameOver && gameState.moveHistory.length > 0) {
+    startClock();
+  }
 }
 
 /**

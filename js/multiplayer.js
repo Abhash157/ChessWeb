@@ -24,7 +24,8 @@ const MP = {
   lastReceivedMove: null,
   playerName: 'Player',
   opponentName: 'Opponent',
-  onlineModeActive: false
+  onlineModeActive: false,
+  clockSyncInterval: null
 };
 
 /**
@@ -157,6 +158,42 @@ function setupSocketListeners() {
     handleOpponentJoined(data);
   });
   
+  // Listen for game end events
+  MP.socket.on('game_end', (data) => {
+    console.log('Received game_end event:', data);
+    handleGameEnd(data);
+  });
+  
+  // Listen for clock synchronization events
+  MP.socket.on('clock_sync', (data) => {
+    console.log('Received clock_sync event:', data);
+    if (data && data.clockState) {
+      syncClockWithServer(data.clockState);
+    }
+  });
+  
+  // Listen for timeout events
+  MP.socket.on('player_timeout', (data) => {
+    console.log('Received player_timeout event:', data);
+    // Stop the clock
+    if (window.CLOCK) {
+      if (typeof window.stopClock === 'function') {
+        window.stopClock();
+      } else if (typeof stopClock === 'function') {
+        stopClock();
+      }
+    }
+    
+    // Update game state
+    if (window.gameState) {
+      window.gameState.gameOver = true;
+    }
+    
+    // Show who won by timeout
+    const winner = data.player === 'white' ? 'Black' : 'White';
+    updateMultiplayerStatus(`Game over: ${winner} wins by timeout!`);
+  });
+  
   /**
    * Switch to local multiplayer fallback when Socket.IO connection fails
    */
@@ -199,8 +236,8 @@ function setupSocketListeners() {
   };
   
   // Listen for opponent's move
-  MP.socket.on('opponent_move', (move) => {
-    console.log('Received opponent_move event from server:', move);
+  MP.socket.on('opponent_move', (data) => {
+    console.log('Received opponent_move event from server:', data);
     
     // Make sure game is marked as started - may be redundant but provides a safeguard
     if (!MP.gameStarted) {
@@ -219,8 +256,18 @@ function setupSocketListeners() {
       }
     }
     
+    // Handle clock synchronization if provided by the server
+    const moveInfo = data.move || data;
+    const clockInfo = data.clockState;
+    
+    if (clockInfo) {
+      console.log('Received clock synchronization data:', clockInfo);
+      syncClockWithServer(clockInfo);
+    }
+    
     // Process the move
-    handleOpponentMove(move);
+    const moveString = typeof moveInfo === 'string' ? moveInfo : moveInfo.move;
+    handleOpponentMove(moveString);
   });
   
   MP.socket.on('opponent_disconnected', (data) => {
@@ -324,10 +371,52 @@ function joinRoom(roomId) {
       
       // Initialize the game board
       console.log('Initializing game board for joiner');
-      resetBoard();
+      resetBoard(); // This will also initialize and start the timer
+      
+      // Flip the board since joiner plays as black
+      flipBoardForBlackPlayer();
       
       // Disable board interaction since White goes first
       disableBoardInteraction();
+      
+      // Show a game status indicator
+      const gameInfo = document.querySelector('.game-info');
+      if (gameInfo) {
+        const mpStatus = document.createElement('div');
+        mpStatus.id = 'in-game-mp-status';
+        mpStatus.className = 'mp-game-status';
+        mpStatus.innerHTML = `<span>Online Match vs ${MP.opponentName}</span>`;
+        gameInfo.prepend(mpStatus);
+      }
+      
+      // Make clocks more visible
+      if (!document.getElementById('mp-game-styles')) {
+        const styles = document.createElement('style');
+        styles.id = 'mp-game-styles';
+        styles.textContent = `
+          .mp-game-status {
+            background-color: #3498db;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-weight: bold;
+            text-align: center;
+          }
+          
+          /* Make clocks more visible in multiplayer mode */
+          .clocks-container {
+            border: 2px solid #3498db;
+            padding: 2px;
+            margin-bottom: 10px;
+          }
+          
+          .active-clock {
+            background-color: #3498db33 !important;
+          }
+        `;
+        document.head.appendChild(styles);
+      }
     } else {
       showConnectionError('Failed to join room: ' + (response.error || 'Unknown error'));
     }
@@ -335,7 +424,7 @@ function joinRoom(roomId) {
 }
 
 /**
- * Send a move to the opponent
+ * Send a move to the opponent via the server
  * @param {Object} moveData - Data about the move
  */
 function sendMove(moveData) {
@@ -358,18 +447,81 @@ function sendMove(moveData) {
   const toCol = to.col;
   
   // Create a simple move string that's easy to parse
-  const moveString = `${piece},${fromRow},${fromCol},${toRow},${toCol}`;
+  let moveString = `${piece},${fromRow},${fromCol},${toRow},${toCol}`;
   
-  // Send the move to the server
+  // Add promotion data if present
+  if (moveData.promotion) {
+    moveString += `,promotion,${moveData.promotion}`;
+  }
+  
+  // Get current clock times to send to the server for synchronization
+  const whiteTime = window.CLOCK ? window.CLOCK.whiteTime : 
+                    (typeof window.getState === 'function' ? window.getState('clock').whiteTime : 600);
+  const blackTime = window.CLOCK ? window.CLOCK.blackTime : 
+                    (typeof window.getState === 'function' ? window.getState('clock').blackTime : 600);
+  
+  // Send the move to the server along with clock times
   MP.socket.emit('make_move', {
     roomId: MP.roomId,
-    move: moveString
+    move: moveString,
+    clockState: {
+      whiteTime: whiteTime,
+      blackTime: blackTime,
+      moveTimestamp: Date.now()
+    }
   });
   
-  console.log(`Move sent to server: ${moveString}`);
+  console.log(`Move sent to server: ${moveString} with clock times: white=${whiteTime}, black=${blackTime}`);
   
   // Update local turn status - switch to opponent's turn
-  window.turn = MP.playerColor === PLAYER.WHITE ? PLAYER.BLACK : PLAYER.WHITE;
+  const newTurn = MP.playerColor === PLAYER.WHITE ? PLAYER.BLACK : PLAYER.WHITE;
+  window.turn = newTurn;
+  
+  // Ensure the clock is switched to the opponent's turn
+  console.log('Switching clock to opponent after sending move');
+  
+  // Use updateState if available (most reliable)
+  if (typeof window.updateState === 'function') {
+    window.updateState({ 
+      'clock.activePlayer': newTurn 
+    });
+    
+    // Make sure the clock is running
+    if (window.getState && !window.getState('clock').isRunning) {
+      window.updateState({ 'clock.isRunning': true });
+    }
+  } 
+  // Fall back to direct modification of CLOCK if needed
+  else if (window.CLOCK) {
+    window.CLOCK.activePlayer = newTurn;
+    
+    // Ensure the clock is running
+    if (!window.CLOCK.isRunning) {
+      console.log('Clock is not running, starting it now after player move');
+      if (typeof window.startClock === 'function') {
+        window.startClock();
+      } else if (typeof startClock === 'function') {
+        startClock();
+      }
+    }
+  }
+    
+  // Update the clock display
+  if (typeof window.updateClockDisplay === 'function') {
+    window.updateClockDisplay();
+  } else {
+    // Direct DOM update if function not available
+    const whiteTimeDisplay = document.getElementById("white-time");
+    const blackTimeDisplay = document.getElementById("black-time");
+    const whiteClockElement = document.querySelector(".white-clock");
+    const blackClockElement = document.querySelector(".black-clock");
+    
+    if (whiteClockElement && blackClockElement) {
+      whiteClockElement.classList.toggle('active-clock', newTurn === PLAYER.WHITE);
+      blackClockElement.classList.toggle('active-clock', newTurn === PLAYER.BLACK);
+    }
+  }
+  
   disableBoardInteraction(); // Disable board until opponent moves
   
   // Update UI to show waiting for opponent
@@ -483,6 +635,55 @@ function handleOpponentMove(moveString) {
     // Disable board interaction while move is processing
     disableBoardInteraction();
     
+    // Ensure the clock is updated with the correct active player
+    // The active player on the clock should be the opponent during their move
+    if (window.CLOCK) {
+      console.log('Updating clock for opponent move');
+      
+      // Use updateState if available (most reliable method)
+      if (typeof window.updateState === 'function') {
+        // Set the active player to the opponent
+        window.updateState({
+          'clock.activePlayer': opponentColor
+        });
+        
+        // Start the clock if it's not running
+        if (window.getState && !window.getState('clock').isRunning) {
+          console.log('Clock is not running, starting it via updateState');
+          window.updateState({ 'clock.isRunning': true });
+        }
+      } 
+      // Fall back to direct CLOCK manipulation if updateState is not available
+      else {
+        // Force set the active player to the opponent
+        window.CLOCK.activePlayer = opponentColor;
+        
+        // Start the clock if it's not running
+        if (!window.CLOCK.isRunning) {
+          console.log('Clock is not running, starting it now');
+          if (typeof window.startClock === 'function') {
+            window.startClock();
+          } else if (typeof startClock === 'function') {
+            startClock();
+          }
+        }
+      }
+      
+      // Update the clock display
+      if (typeof window.updateClockDisplay === 'function') {
+        window.updateClockDisplay();
+      } else {
+        // Direct DOM update if function not available
+        const whiteClockElement = document.querySelector(".white-clock");
+        const blackClockElement = document.querySelector(".black-clock");
+        
+        if (whiteClockElement && blackClockElement) {
+          whiteClockElement.classList.toggle('active-clock', opponentColor === PLAYER.WHITE);
+          blackClockElement.classList.toggle('active-clock', opponentColor === PLAYER.BLACK);
+        }
+      }
+    }
+    
     // If this is a promotion move and we already know the promoted piece,
     // we need to prepare the pendingPromotion state
     if (isPromotion) {
@@ -518,16 +719,58 @@ function handleOpponentMove(moveString) {
     
     // Use the global handlePieceMove function
     window.handlePieceMove(fromSquare, toSquare, opponentColor)
-      .then(() => {
+      .then((result) => {
         console.log('Opponent move applied successfully!');
+        
+        // Check if the game is over after this move
+        if (window.gameState && window.gameState.gameOver) {
+          console.log('Game is over after opponent move:', {
+            checkmate: window.gameState.checkmate,
+            stalemate: window.gameState.stalemate,
+            insufficientMaterial: window.gameState.insufficientMaterial,
+            threefoldRepetition: window.gameState.threefoldRepetition,
+            fiftyMoveRule: window.gameState.fiftyMoveRule
+          });
+          
+          // Stop the clock if game is over
+          if (window.CLOCK) {
+            console.log('Stopping clock at game end');
+            if (typeof window.stopClock === 'function') {
+              window.stopClock();
+            } else if (typeof stopClock === 'function') {
+              stopClock();
+            } else {
+              // Direct approach if function isn't available
+              if (window.CLOCK.timerInterval) {
+                clearInterval(window.CLOCK.timerInterval);
+                window.CLOCK.timerInterval = null;
+                window.CLOCK.isRunning = false;
+              }
+            }
+          }
+          
+          // Show appropriate message based on game end reason
+          let endReason = 'Unknown reason';
+          if (window.gameState.checkmate) {
+            const winner = MP.playerColor === PLAYER.WHITE ? 'Black' : 'White';
+            endReason = `Checkmate! ${winner} wins!`;
+          } else if (window.gameState.stalemate) {
+            endReason = 'Stalemate! Game drawn.';
+          } else if (window.gameState.insufficientMaterial) {
+            endReason = 'Draw by insufficient material.';
+          } else if (window.gameState.threefoldRepetition) {
+            endReason = 'Draw by threefold repetition.';
+          } else if (window.gameState.fiftyMoveRule) {
+            endReason = 'Draw by fifty-move rule.';
+          }
+          
+          // Handle game end
+          handleGameEnd({ reason: endReason });
+          return;
+        }
         
         // If this is a promotion move, wait for the promotion to complete
         if (isPromotion) {
-          // With our new changes, the promotion modal won't be shown to the opponent
-          // So we just wait for the opponent to choose promotion piece
-          disableBoardInteraction();
-          updateMultiplayerStatus('Waiting for opponent to select promotion piece...');
-          
           // Immediately update the piece on the board to the promoted piece
           if (moveData.promotion) {
             // Make sure we have access to the piece symbols, either from global window.pieces or fallback to Unicode values
@@ -587,14 +830,166 @@ function handleOpponentMove(moveString) {
             
             // Now that we've updated the piece, enable the board
             window.turn = MP.playerColor;
-            if (typeof checkForEndOfGame === 'function') checkForEndOfGame();
-            if (typeof cleanupAfterMove === 'function') cleanupAfterMove();
+            
+            // Ensure the clock is switched to the player's turn
+            console.log('Ensuring clock switches to player after opponent move');
+            const whiteTimeDisplay = document.getElementById("white-time");
+            const blackTimeDisplay = document.getElementById("black-time");
+            const whiteClockElement = document.querySelector(".white-clock");
+            const blackClockElement = document.querySelector(".black-clock");
+            
+            // First try to update using central state (most reliable)
+            if (typeof window.updateState === 'function') {
+              window.updateState({ 
+                'clock.activePlayer': MP.playerColor
+              });
+            } 
+            // Fall back to direct CLOCK manipulation
+            else if (window.CLOCK) {
+              window.CLOCK.activePlayer = MP.playerColor;
+            }
+            
+            // Visual indicators for active player
+            if (whiteClockElement && blackClockElement) {
+              whiteClockElement.classList.toggle('active-clock', MP.playerColor === PLAYER.WHITE);
+              blackClockElement.classList.toggle('active-clock', MP.playerColor === PLAYER.BLACK);
+            }
+            
+            // Ensure the clock is running
+            if ((window.CLOCK && !window.CLOCK.isRunning) || 
+                (typeof window.getState === 'function' && !window.getState('clock').isRunning)) {
+              
+              console.log('Clock is not running, starting it after opponent move');
+              
+              if (typeof window.startClock === 'function') {
+                window.startClock();
+              } else if (typeof startClock === 'function') {
+                startClock();
+              } else if (window.CLOCK) {
+                // Last resort - create a new interval
+                if (window.CLOCK.timerInterval) clearInterval(window.CLOCK.timerInterval);
+                
+                window.CLOCK.isRunning = true;
+                window.CLOCK.timerInterval = setInterval(() => {
+                  if (window.CLOCK.activePlayer === PLAYER.WHITE) {
+                    window.CLOCK.whiteTime--;
+                  } else {
+                    window.CLOCK.blackTime--;
+                  }
+                  
+                  if (typeof window.updateClockDisplay === 'function') {
+                    window.updateClockDisplay();
+                  } else if (whiteTimeDisplay && blackTimeDisplay) {
+                    // Manual display update
+                    const whiteMinutes = Math.floor(window.CLOCK.whiteTime / 60);
+                    const whiteSecs = window.CLOCK.whiteTime % 60;
+                    const blackMinutes = Math.floor(window.CLOCK.blackTime / 60);
+                    const blackSecs = window.CLOCK.blackTime % 60;
+                    
+                    whiteTimeDisplay.textContent = `${whiteMinutes.toString().padStart(2, '0')}:${whiteSecs.toString().padStart(2, '0')}`;
+                    blackTimeDisplay.textContent = `${blackMinutes.toString().padStart(2, '0')}:${blackSecs.toString().padStart(2, '0')}`;
+                  }
+                  
+                }, 1000);
+                
+                if (typeof window.updateState === 'function') {
+                  window.updateState({ 
+                    'clock.isRunning': true,
+                    'clock.timerInterval': window.CLOCK.timerInterval
+                  });
+                }
+              }
+            }
+            
+            // Ensure the clock display is updated
+            if (typeof window.updateClockDisplay === 'function') {
+              window.updateClockDisplay();
+            }
+            
+            // Enable interaction so the player can make their move
             enableBoardInteraction();
+            
+            // Update UI
             updateMultiplayerStatus(`Your turn`);
           }
         } else {
           // Update turn status to player's turn
           window.turn = MP.playerColor;
+          
+          // Ensure the clock is properly switched to the player's turn
+          console.log('Ensuring clock switches to player after opponent move');
+          const whiteTimeDisplay = document.getElementById("white-time");
+          const blackTimeDisplay = document.getElementById("black-time");
+          const whiteClockElement = document.querySelector(".white-clock");
+          const blackClockElement = document.querySelector(".black-clock");
+          
+          // First try to update using central state (most reliable)
+          if (typeof window.updateState === 'function') {
+            window.updateState({ 
+              'clock.activePlayer': MP.playerColor
+            });
+          } 
+          // Fall back to direct CLOCK manipulation
+          else if (window.CLOCK) {
+            window.CLOCK.activePlayer = MP.playerColor;
+          }
+          
+          // Visual indicators for active player
+          if (whiteClockElement && blackClockElement) {
+            whiteClockElement.classList.toggle('active-clock', MP.playerColor === PLAYER.WHITE);
+            blackClockElement.classList.toggle('active-clock', MP.playerColor === PLAYER.BLACK);
+          }
+          
+          // Ensure the clock is running
+          if ((window.CLOCK && !window.CLOCK.isRunning) || 
+              (typeof window.getState === 'function' && !window.getState('clock').isRunning)) {
+            
+            console.log('Clock is not running, starting it after opponent move');
+            
+            if (typeof window.startClock === 'function') {
+              window.startClock();
+            } else if (typeof startClock === 'function') {
+              startClock();
+            } else if (window.CLOCK) {
+              // Last resort - create a new interval
+              if (window.CLOCK.timerInterval) clearInterval(window.CLOCK.timerInterval);
+              
+              window.CLOCK.isRunning = true;
+              window.CLOCK.timerInterval = setInterval(() => {
+                if (window.CLOCK.activePlayer === PLAYER.WHITE) {
+                  window.CLOCK.whiteTime--;
+                } else {
+                  window.CLOCK.blackTime--;
+                }
+                
+                if (typeof window.updateClockDisplay === 'function') {
+                  window.updateClockDisplay();
+                } else if (whiteTimeDisplay && blackTimeDisplay) {
+                  // Manual display update
+                  const whiteMinutes = Math.floor(window.CLOCK.whiteTime / 60);
+                  const whiteSecs = window.CLOCK.whiteTime % 60;
+                  const blackMinutes = Math.floor(window.CLOCK.blackTime / 60);
+                  const blackSecs = window.CLOCK.blackTime % 60;
+                  
+                  whiteTimeDisplay.textContent = `${whiteMinutes.toString().padStart(2, '0')}:${whiteSecs.toString().padStart(2, '0')}`;
+                  blackTimeDisplay.textContent = `${blackMinutes.toString().padStart(2, '0')}:${blackSecs.toString().padStart(2, '0')}`;
+                }
+                
+              }, 1000);
+              
+              if (typeof window.updateState === 'function') {
+                window.updateState({ 
+                  'clock.isRunning': true,
+                  'clock.timerInterval': window.CLOCK.timerInterval
+                });
+              }
+            }
+          }
+          
+          // Ensure the clock display is updated
+          if (typeof window.updateClockDisplay === 'function') {
+            window.updateClockDisplay();
+          }
           
           // Enable interaction so the player can make their move
           enableBoardInteraction();
@@ -750,12 +1145,11 @@ function startMultiplayerGame() {
   }
   
   // Set game mode to online - using multiple approaches to ensure it's set
-  window.currentGameMode = window.GAME_MODE.ONLINE;
+  // Check if GAME_MODE exists before accessing it
   if (window.GAME_MODE && typeof window.GAME_MODE.ONLINE !== 'undefined') {
-    console.log('Setting game mode to ONLINE using window.GAME_MODE');
     window.currentGameMode = window.GAME_MODE.ONLINE;
   } else {
-    console.log('Setting game mode to "online" as string fallback');
+    // Fallback to string if GAME_MODE is not defined
     window.currentGameMode = 'online';
   }
   console.log('Current game mode set to:', window.currentGameMode);
@@ -764,11 +1158,29 @@ function startMultiplayerGame() {
   updateMultiplayerStatus(`Game started! You are playing as ${MP.playerColor === PLAYER.WHITE ? 'White' : 'Black'}`);
   
   // Reset board and set up for a new game
+  // This will also initialize and start the timer
   resetBoard();
-  resetClock();
   
-  // Start the clock
-  startClock();
+  // Flip board if player is black
+  flipBoardForBlackPlayer();
+  
+  // Request initial clock synchronization from server
+  if (MP.socket && MP.socket.connected && MP.roomId) {
+    console.log('Requesting initial clock sync from server');
+    MP.socket.emit('request_clock_sync', { roomId: MP.roomId });
+  }
+  
+  // Set up periodic clock synchronization
+  if (MP.clockSyncInterval) {
+    clearInterval(MP.clockSyncInterval);
+  }
+  
+  MP.clockSyncInterval = setInterval(() => {
+    if (MP.socket && MP.socket.connected && MP.roomId && MP.gameStarted) {
+      console.log('Requesting periodic clock sync');
+      MP.socket.emit('request_clock_sync', { roomId: MP.roomId });
+    }
+  }, 30000); // Sync every 30 seconds
   
   // If player is black, disable board interaction until white moves
   if (MP.playerColor === PLAYER.BLACK) {
@@ -797,25 +1209,20 @@ function startMultiplayerGame() {
       #mp-overlay {
         display: none !important;
       }
+      
+      /* Make clocks more visible in multiplayer mode */
+      .clocks-container {
+        border: 2px solid #3498db;
+        padding: 2px;
+        margin-bottom: 10px;
+      }
+      
+      .active-clock {
+        background-color: #3498db33 !important;
+      }
     `;
     document.head.appendChild(styles);
   }
-  
-  // Dispatch an event to signal that the game has started
-  const gameStartEvent = new CustomEvent('chess_game_started', {
-    detail: {
-      roomId: MP.roomId,
-      playerColor: MP.playerColor
-    }
-  });
-  window.dispatchEvent(gameStartEvent);
-  
-  // Store in localStorage that the game has started
-  localStorage.setItem(`chessGameStarted_${MP.roomId}`, JSON.stringify({
-    timestamp: new Date().getTime(),
-    hostId: MP.isHost ? MP.playerId : null,
-    joinerId: !MP.isHost ? MP.playerId : null
-  }));
   
   console.log('Multiplayer game started successfully!');
 }
@@ -870,6 +1277,109 @@ function resetBoard() {
     selectedSquare.classList.remove('selected');
     selectedSquare = null;
   }
+  
+  // Reset the clock
+  console.log('Resetting and starting clock in resetBoard');
+  
+  // First try using the central state API
+  if (typeof window.updateState === 'function') {
+    window.updateState({
+      'clock.whiteTime': 600, // 10 minutes
+      'clock.blackTime': 600,
+      'clock.isRunning': false,
+      'clock.activePlayer': PLAYER.WHITE
+    });
+  } 
+  // Fall back to direct CLOCK manipulation if needed
+  else if (window.CLOCK) {
+    window.CLOCK.whiteTime = 600;
+    window.CLOCK.blackTime = 600;
+    window.CLOCK.activePlayer = PLAYER.WHITE;
+    window.CLOCK.isRunning = false;
+  }
+  
+  // Update the clock display
+  if (typeof window.updateClockDisplay === 'function') {
+    window.updateClockDisplay();
+  } else {
+    // Direct DOM update if function not available
+    const whiteTimeDisplay = document.getElementById("white-time");
+    const blackTimeDisplay = document.getElementById("black-time");
+    if (whiteTimeDisplay && blackTimeDisplay) {
+      whiteTimeDisplay.textContent = '10:00';
+      blackTimeDisplay.textContent = '10:00';
+    }
+    
+    const whiteClockElement = document.querySelector(".white-clock");
+    const blackClockElement = document.querySelector(".black-clock");
+    if (whiteClockElement && blackClockElement) {
+      whiteClockElement.classList.add('active-clock');
+      blackClockElement.classList.remove('active-clock');
+    }
+  }
+  
+  // Start the clock with a slight delay
+  setTimeout(() => {
+    console.log('Starting clock from resetBoard');
+    
+    // Clear any existing timer
+    if (window.CLOCK && window.CLOCK.timerInterval) {
+      clearInterval(window.CLOCK.timerInterval);
+      window.CLOCK.timerInterval = null;
+    }
+    
+    // Try various ways to start the clock
+    if (typeof window.startClock === 'function') {
+      window.startClock();
+    } else if (typeof startClock === 'function') {
+      startClock();
+    } else if (window.CLOCK) {
+      // Direct approach if function isn't available
+      window.CLOCK.isRunning = true;
+      window.CLOCK.timerInterval = setInterval(() => {
+        if (window.CLOCK.activePlayer === PLAYER.WHITE) {
+          window.CLOCK.whiteTime--;
+          if (window.CLOCK.whiteTime <= 0) {
+            if (typeof window.handleTimeOut === 'function') {
+              window.handleTimeOut(PLAYER.WHITE);
+            }
+          }
+        } else {
+          window.CLOCK.blackTime--;
+          if (window.CLOCK.blackTime <= 0) {
+            if (typeof window.handleTimeOut === 'function') {
+              window.handleTimeOut(PLAYER.BLACK);
+            }
+          }
+        }
+        if (typeof window.updateClockDisplay === 'function') {
+          window.updateClockDisplay();
+        } else {
+          // Direct DOM update as fallback
+          const activePlayer = window.CLOCK.activePlayer;
+          const timeLeft = activePlayer === PLAYER.WHITE ? 
+                          window.CLOCK.whiteTime : window.CLOCK.blackTime;
+          const minutes = Math.floor(timeLeft / 60);
+          const seconds = timeLeft % 60;
+          const timeDisplay = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+          
+          if (activePlayer === PLAYER.WHITE && whiteTimeDisplay) {
+            whiteTimeDisplay.textContent = timeDisplay;
+          } else if (activePlayer === PLAYER.BLACK && blackTimeDisplay) {
+            blackTimeDisplay.textContent = timeDisplay;
+          }
+        }
+      }, 1000);
+      
+      // Also set it in the state system if available
+      if (typeof window.updateState === 'function') {
+        window.updateState({
+          'clock.isRunning': true,
+          'clock.timerInterval': window.CLOCK.timerInterval
+        });
+      }
+    }
+  }, 500); // Slight delay to ensure DOM is ready
 }
 
 /**
@@ -1204,6 +1714,29 @@ function leaveMultiplayerMode() {
     MP.socket = null;
   }
   
+  // Clear clock synchronization interval
+  if (MP.clockSyncInterval) {
+    clearInterval(MP.clockSyncInterval);
+    MP.clockSyncInterval = null;
+  }
+  
+  // Stop the clock
+  if (window.CLOCK) {
+    console.log('Stopping clock when leaving multiplayer');
+    if (typeof window.stopClock === 'function') {
+      window.stopClock();
+    } else if (typeof stopClock === 'function') {
+      stopClock();
+    } else {
+      // Direct approach if function isn't available
+      if (window.CLOCK.timerInterval) {
+        clearInterval(window.CLOCK.timerInterval);
+        window.CLOCK.timerInterval = null;
+        window.CLOCK.isRunning = false;
+      }
+    }
+  }
+  
   // Reset all MP state
   MP.roomId = null;
   MP.playerId = null;
@@ -1224,6 +1757,87 @@ function leaveMultiplayerMode() {
   updateGameStatus();
 }
 
+/**
+ * Handle game ending (checkmate, stalemate, etc.)
+ * @param {Object} data - Data about the game ending
+ */
+function handleGameEnd(data) {
+  console.log('Game ended:', data);
+  
+  // Stop the clock
+  if (window.CLOCK) {
+    console.log('Stopping clock at game end');
+    if (typeof window.stopClock === 'function') {
+      window.stopClock();
+    } else if (typeof stopClock === 'function') {
+      stopClock();
+    } else {
+      // Direct approach if function isn't available
+      if (window.CLOCK.timerInterval) {
+        clearInterval(window.CLOCK.timerInterval);
+        window.CLOCK.timerInterval = null;
+        window.CLOCK.isRunning = false;
+      }
+    }
+  }
+  
+  // Update game state
+  if (window.gameState) {
+    window.gameState.gameOver = true;
+  }
+  
+  // Update UI
+  updateMultiplayerStatus(`Game over: ${data.reason || 'Unknown reason'}`);
+  
+  // Show end game options
+  const mpStatus = document.getElementById('mp-status');
+  if (mpStatus) {
+    mpStatus.innerHTML += `
+      <div class="mp-game-end-options">
+        <button id="mp-new-game" class="mp-btn">New Game</button>
+        <button id="mp-exit-game" class="mp-btn mp-cancel-btn">Exit</button>
+      </div>
+    `;
+    
+    // Add event listeners
+    document.getElementById('mp-new-game').addEventListener('click', () => {
+      // Restart the game
+      resetBoard();
+      resetClock();
+      MP.gameStarted = true;
+      window.turn = PLAYER.WHITE;
+      if (MP.playerColor === PLAYER.WHITE) {
+        enableBoardInteraction();
+        updateMultiplayerStatus('Your turn (White)');
+      } else {
+        disableBoardInteraction();
+        updateMultiplayerStatus('Waiting for opponent (White) to move');
+      }
+    });
+    
+    document.getElementById('mp-exit-game').addEventListener('click', () => {
+      leaveMultiplayerMode();
+      window.location.href = 'home.html';
+    });
+  }
+}
+
+// Add CSS for game end options
+const gameEndStyles = document.createElement('style');
+gameEndStyles.textContent = `
+  .mp-game-end-options {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+    justify-content: center;
+  }
+  
+  .mp-game-end-options .mp-btn {
+    flex: 1;
+  }
+`;
+document.head.appendChild(gameEndStyles);
+
 // Make functions available to other modules
 window.MP = MP;
 window.initMultiplayer = initMultiplayer;
@@ -1231,4 +1845,151 @@ window.leaveMultiplayerMode = leaveMultiplayerMode;
 window.sendMove = sendMove;
 
 // Use the same URL as the DEFAULT_SOCKET_SERVER_URL for consistency
-const API_URL = DEFAULT_SOCKET_SERVER_URL; 
+const API_URL = DEFAULT_SOCKET_SERVER_URL;
+
+/**
+ * Synchronize the local clock with server clock data
+ * @param {Object} serverClockData - Clock data from the server
+ */
+function syncClockWithServer(serverClockData) {
+  if (!serverClockData || !serverClockData.whiteTime || !serverClockData.blackTime) {
+    console.error('Invalid server clock data:', serverClockData);
+    return;
+  }
+  
+  console.log('Synchronizing clock with server data:', serverClockData);
+  
+  // Account for network delay
+  let networkDelay = 0;
+  if (serverClockData.moveTimestamp) {
+    const now = Date.now();
+    networkDelay = Math.floor((now - serverClockData.moveTimestamp) / 1000);
+    console.log(`Estimated network delay: ${networkDelay} seconds`);
+  }
+  
+  // Get current server-provided times, adjusted for network delay
+  const whiteTime = Math.max(0, serverClockData.whiteTime - (serverClockData.activePlayer === PLAYER.WHITE ? networkDelay : 0));
+  const blackTime = Math.max(0, serverClockData.blackTime - (serverClockData.activePlayer === PLAYER.BLACK ? networkDelay : 0));
+  
+  // Apply the synchronized times using all available methods
+  // 1. Use updateState if available
+  if (typeof window.updateState === 'function') {
+    console.log('Updating clock times via updateState:', { whiteTime, blackTime });
+    window.updateState({
+      'clock.whiteTime': whiteTime,
+      'clock.blackTime': blackTime
+    });
+  } 
+  // 2. Fall back to direct CLOCK manipulation
+  else if (window.CLOCK) {
+    console.log('Updating clock times directly:', { whiteTime, blackTime });
+    window.CLOCK.whiteTime = whiteTime;
+    window.CLOCK.blackTime = blackTime;
+  }
+  
+  // Update the active player if provided
+  if (serverClockData.activePlayer !== undefined) {
+    if (typeof window.updateState === 'function') {
+      window.updateState({
+        'clock.activePlayer': serverClockData.activePlayer
+      });
+    } else if (window.CLOCK) {
+      window.CLOCK.activePlayer = serverClockData.activePlayer;
+    }
+  }
+  
+  // Update the visual display
+  if (typeof window.updateClockDisplay === 'function') {
+    window.updateClockDisplay();
+  } else {
+    // Direct DOM update as fallback
+    const whiteTimeDisplay = document.getElementById('white-time');
+    const blackTimeDisplay = document.getElementById('black-time');
+    
+    if (whiteTimeDisplay && blackTimeDisplay) {
+      const formatTime = (seconds) => {
+        const minutes = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      };
+      
+      whiteTimeDisplay.textContent = formatTime(whiteTime);
+      blackTimeDisplay.textContent = formatTime(blackTime);
+      
+      const whiteClockElement = document.querySelector('.white-clock');
+      const blackClockElement = document.querySelector('.black-clock');
+      
+      if (whiteClockElement && blackClockElement) {
+        const activePlayer = serverClockData.activePlayer !== undefined ? 
+                            serverClockData.activePlayer : 
+                            (window.CLOCK ? window.CLOCK.activePlayer : window.turn);
+        
+        whiteClockElement.classList.toggle('active-clock', activePlayer === PLAYER.WHITE);
+        blackClockElement.classList.toggle('active-clock', activePlayer === PLAYER.BLACK);
+      }
+    }
+  }
+  
+  console.log('Clock synchronized with server data');
+}
+
+/**
+ * Flip the board to match the player's perspective
+ * White sees board with white pieces at bottom (default)
+ * Black sees board with black pieces at bottom (flipped)
+ */
+function flipBoardForBlackPlayer() {
+  if (MP.playerColor === PLAYER.BLACK) {
+    console.log('Flipping board for black player perspective');
+    
+    // Get the chessboard element
+    const chessboard = document.getElementById('chessboard');
+    if (!chessboard) {
+      console.error('Cannot find chessboard element to flip');
+      return;
+    }
+    
+    // Add a class that will flip the board using CSS transforms
+    chessboard.classList.add('flipped');
+    
+    // Also flip the notation on the board if it exists
+    const ranks = document.querySelectorAll('.rank-label');
+    const files = document.querySelectorAll('.file-label');
+    
+    if (ranks.length > 0) ranks.forEach(rank => rank.classList.add('flipped'));
+    if (files.length > 0) files.forEach(file => file.classList.add('flipped'));
+    
+    // Add CSS to actually perform the flipping
+    if (!document.getElementById('board-flip-styles')) {
+      const style = document.createElement('style');
+      style.id = 'board-flip-styles';
+      style.textContent = `
+        #chessboard.flipped {
+          transform: rotate(180deg);
+        }
+        
+        #chessboard.flipped .square {
+          transform: rotate(180deg);
+        }
+        
+        .rank-label.flipped, .file-label.flipped {
+          transform: rotate(180deg);
+        }
+        
+        /* Make the clocks consistent with the board orientation */
+        .flipped-clocks .clocks-container {
+          flex-direction: column-reverse;
+        }
+      `;
+      document.head.appendChild(style);
+      
+      // Also flip the clock order to match board orientation
+      const clocksContainer = document.querySelector('.clocks-container');
+      if (clocksContainer) {
+        clocksContainer.classList.add('flipped-clocks');
+      }
+    }
+    
+    console.log('Board flipped for black player');
+  }
+} 
