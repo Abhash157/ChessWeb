@@ -8,12 +8,12 @@ A modular web-based chess application with AI opponent, multiplayer, and local m
 You can play ChessWeb in two ways:
 
 ### Online Multiplayer
-1. Visit [ChessWeb Live](https://abhash.me/ChessWeb)
+1. Visit [ChessWeb Live](https://abhashlimbu.com.np/ChessWeb)
 2. Click "Multiplayer" to create or join a game
 3. Share the room code with a friend to play together
 
 ### Local Play
-1. Visit [ChessWeb Live](https://abhash.me/ChessWeb)
+1. Visit [ChessWeb Live](https://abhashlimbu.com.np/ChessWeb)
 2. Choose your preferred game mode:
    - Player vs Player (local hotseat)
    - Player vs Computer (Stockfish AI)
